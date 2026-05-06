@@ -7,9 +7,6 @@ datasource db {
   url = env("DATABASE_URL")
 }
 
-//////////////////////////////////////////////////////
-// ENUMS
-//////////////////////////////////////////////////////
 
 enum UserRole {
   ADMIN
@@ -62,9 +59,7 @@ enum DiseaseCategory {
   OTHER
 }
 
-//////////////////////////////////////////////////////
-// ORGANIZATION & USERS
-//////////////////////////////////////////////////////
+
 
 model Organization {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -103,9 +98,7 @@ model User {
   @@index([organizationId])
 }
 
-//////////////////////////////////////////////////////
-// ANIMALS
-//////////////////////////////////////////////////////
+
 
 model Animal {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -153,9 +146,7 @@ model Animal {
   @@index([healthStatus])
 }
 
-//////////////////////////////////////////////////////
-// HEALTH RECORDS
-//////////////////////////////////////////////////////
+
 
 model HealthRecord {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -194,9 +185,7 @@ model HealthRecord {
   @@index([date])
 }
 
-//////////////////////////////////////////////////////
-// VETERINARY NOTES
-//////////////////////////////////////////////////////
+
 
 model VeterinaryNote {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -225,9 +214,7 @@ model VeterinaryNote {
   @@index([organizationId])
 }
 
-//////////////////////////////////////////////////////
-// BREEDING
-//////////////////////////////////////////////////////
+
 
 model Breeding {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -254,9 +241,7 @@ model Breeding {
   @@index([organizationId])
 }
 
-//////////////////////////////////////////////////////
-// SHARING
-//////////////////////////////////////////////////////
+
 
 model AnimalShare {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
