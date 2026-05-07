@@ -6,9 +6,11 @@ import { ObjectId } from 'mongodb'
 // POST: Create a share link for an animal
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+
     const authHeader = req.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
 
@@ -30,7 +32,7 @@ export async function POST(
 
     // Verify animal belongs to user
     const animal = await animalsCollection.findOne({
-      _id: new ObjectId(params.id),
+      _id: new ObjectId(id),
       userId: new ObjectId(payload.userId),
     })
 
@@ -40,7 +42,7 @@ export async function POST(
 
     // Check if share already exists
     let share = await sharesCollection.findOne({
-      animalId: new ObjectId(params.id),
+      animalId: new ObjectId(id),
     })
 
     const shareCode = generateShareCode()
@@ -62,7 +64,7 @@ export async function POST(
     } else {
       // Create new share
       const result = await sharesCollection.insertOne({
-        animalId: new ObjectId(params.id),
+        animalId: new ObjectId(id),
         userId: new ObjectId(payload.userId),
         shareCode,
         isPublic,
@@ -74,7 +76,7 @@ export async function POST(
         {
           share: {
             _id: result.insertedId,
-            animalId: params.id,
+            animalId: id,
             shareCode,
             isPublic,
           },
@@ -91,9 +93,11 @@ export async function POST(
 // GET: Get share details for an animal
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+
     const authHeader = req.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
 
@@ -110,7 +114,7 @@ export async function GET(
     const sharesCollection = db.collection('animal_shares')
 
     const share = await sharesCollection.findOne({
-      animalId: new ObjectId(params.id),
+      animalId: new ObjectId(id),
     })
 
     if (!share) {
