@@ -13,8 +13,24 @@ interface AnimalFormProps {
   submitLabel?: string
 }
 
-const ANIMAL_TYPES = ['cattle', 'sheep', 'goat', 'pig', 'poultry', 'horse', 'other']
-const HEALTH_STATUSES = ['healthy', 'sick', 'injured', 'recovering']
+const ANIMAL_TYPES = [
+  'CATTLE',
+  'SHEEP',
+  'GOAT',
+  'PIG',
+  'POULTRY',
+  'HORSE',
+  'FISH',
+  'AQUATIC',
+  'OTHER'
+]
+const HEALTH_STATUSES = [
+  'HEALTHY',
+  'SICK',
+  'INJURED',
+  'RECOVERING',
+  'DECEASED'
+]
 
 export function AnimalForm({
   onSubmit,
@@ -22,17 +38,18 @@ export function AnimalForm({
   isLoading = false,
   submitLabel = 'Create Animal'
 }: AnimalFormProps) {
-  const [formData, setFormData] = useState(initialData || {
-    name: '',
-    type: 'cattle',
-    breed: '',
-    dateOfBirth: '',
-    weight: '',
-    color: '',
-    identifier: '',
-    notes: '',
-    healthStatus: 'healthy'
-  })
+
+const [formData, setFormData] = useState(initialData || {
+  name: '',
+  type: 'CATTLE',
+  breed: '',
+  dateOfBirth: '',
+  weight: '',
+  color: '',
+  identificationId: '',
+  notes: '',
+  healthStatus: 'HEALTHY'
+})
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(isLoading)
 
@@ -52,10 +69,13 @@ export function AnimalForm({
     setLoading(true)
 
     try {
-      await onSubmit(formData)
+      await onSubmit({
+  ...formData,
+  weight: formData.weight ? Number(formData.weight) : undefined
+})
     } catch (err: any) {
       setError(err.message || 'Something went wrong')
-      console.error('[v0] Form submission error:', err)
+      console.error('Form submission error:', err)
     } finally {
       setLoading(false)
     }
@@ -121,15 +141,15 @@ export function AnimalForm({
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="identifier" className="block text-sm font-medium text-foreground">
+              <label htmlFor="identificationId" className="block text-sm font-medium text-foreground">
                 Identifier / Tag Number
               </label>
               <Input
-                id="identifier"
-                name="identifier"
+                id="identificationId"
                 type="text"
                 placeholder="e.g., #12345"
-                value={formData.identifier}
+                name="identificationId"
+                value={formData.identificationId}
                 onChange={handleChange}
                 disabled={loading}
               />
