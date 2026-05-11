@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/animals', label: 'Animals', icon: Beef, badge: null },
   { href: '/analytics', label: 'Analytics', icon: BarChart3, badge: null },
   { href: '/settings', label: 'Settings', icon: Settings, badge: null },
+  { href: '/healthy', label: 'Healthy', icon: Leaf, badge: null },
 ]
 
 export function AppSidebar({ children }: { children: React.ReactNode }) {
