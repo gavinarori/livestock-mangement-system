@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+
 import {
   DM_Sans,
   Fraunces,
@@ -6,6 +7,8 @@ import {
 } from 'next/font/google'
 
 import { ThemeProvider } from './theme-provider'
+import { AppSidebar } from '@/components/sidebar'
+
 import './globals.css'
 
 const dmSans = DM_Sans({
@@ -50,7 +53,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <AppSidebar>
+            {children}
+          </AppSidebar>
         </ThemeProvider>
       </body>
     </html>
