@@ -6,15 +6,8 @@ import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
-  BarChart3,
-  Heart,
-  Plus,
-  Settings,
-  TrendingUp,
-  Users,
-  AlertCircle,
-  ArrowRight,
-  Activity
+  BarChart3, Heart, Plus, Settings, TrendingUp, Users,
+  AlertCircle, ArrowRight, Activity, Leaf, Zap, Wind
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -25,6 +18,129 @@ interface DashboardStats {
   memberCount: number
   organizationName: string
 }
+
+// Animated counter hook
+function useCountUp(target: number, duration = 1200) {
+  const [value, setValue] = useState(0)
+  useEffect(() => {
+    if (target === 0) return
+    const steps = 40
+    const increment = target / steps
+    let current = 0
+    const timer = setInterval(() => {
+      current = Math.min(current + increment, target)
+      setValue(Math.round(current))
+      if (current >= target) clearInterval(timer)
+    }, duration / steps)
+    return () => clearInterval(timer)
+  }, [target, duration])
+  return value
+}
+
+function StatCard({
+  label, value, icon: Icon, color, subtext, delay = 0, healthPct
+}: {
+  label: string; value: number; icon: any; color: string;
+  subtext: string; delay?: number; healthPct?: number
+}) {
+  const count = useCountUp(value)
+
+  return (
+    <article
+      className={`stagger-child animate-fade-up card-hover bg-card border border-border rounded-2xl p-5 flex flex-col gap-3 shadow-sm`}
+      style={{ animationDelay: `${delay}ms`, animationFillMode: 'forwards' }}
+      aria-label={`${label}: ${value}`}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">{label}</span>
+        <span className={`p-2 rounded-xl ${color}`} aria-hidden="true">
+          <Icon className="w-4 h-4" />
+        </span>
+      </div>
+      <div>
+        <p className="stat-number text-4xl font-semibold leading-none">{count.toLocaleString()}</p>
+        <p className="text-xs text-muted-foreground mt-1.5">{subtext}</p>
+      </div>
+      {healthPct !== undefined && (
+        <div role="progressbar" aria-valuenow={healthPct} aria-valuemin={0} aria-valuemax={100} aria-label={`${healthPct}% healthy`}>
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-emerald-500 progress-bar"
+              style={{ '--progress-width': `${healthPct}%` } as React.CSSProperties}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">{healthPct}% of herd</p>
+        </div>
+      )}
+    </article>
+  )
+}
+
+// Skeleton loader
+function DashboardSkeleton() {
+  return (
+    <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8" aria-busy="true" aria-label="Loading dashboard">
+      <div className="skeleton h-10 w-64 rounded-xl" />
+      <div className="skeleton h-4 w-40 rounded-lg" />
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="skeleton h-32 rounded-2xl" />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="skeleton h-24 rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const QUICK_ACTIONS = [
+  { label: 'Add Animal', icon: Plus, href: '/animals/new', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400', desc: 'Register new livestock' },
+  { label: 'Analytics', icon: BarChart3, href: '/analytics', color: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400', desc: 'View herd insights' },
+  { label: 'Manage Team', icon: Users, href: '/settings?tab=members', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400', desc: 'Invite & manage staff' },
+  { label: 'Settings', icon: Settings, href: '/settings', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400', desc: 'Configure your org' },
+]
+
+const FEATURES = [
+  {
+    title: 'Animal Management', desc: 'Comprehensive herd tracking',
+    icon: Leaf, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+    items: [
+      { icon: Plus, label: 'Track Animals', sub: 'Record breeds, genetics, identification tags' },
+      { icon: Heart, label: 'Health Monitoring', sub: 'Vaccinations, treatments, health status' },
+    ],
+    href: '/animals', cta: 'Manage Animals'
+  },
+  {
+    title: 'Analytics & Reporting', desc: 'Data-driven farm insights',
+    icon: BarChart3, color: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400',
+    items: [
+      { icon: BarChart3, label: 'Herd Metrics', sub: 'Composition, health trends, performance' },
+      { icon: TrendingUp, label: 'Disease Tracking', sub: 'Pattern monitoring and health alerts' },
+    ],
+    href: '/analytics', cta: 'View Analytics'
+  },
+  {
+    title: 'Team Management', desc: 'Collaborate with your farm team',
+    icon: Users, color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400',
+    items: [
+      { icon: Users, label: 'Role-Based Access', sub: 'Admin, Manager, Vet, Worker, Viewer' },
+      { icon: Settings, label: 'Granular Permissions', sub: 'Control who can access what' },
+    ],
+    href: '/settings?tab=members', cta: 'Manage Team'
+  },
+  {
+    title: 'Organization Setup', desc: 'Configure your enterprise',
+    icon: Zap, color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
+    items: [
+      { icon: Activity, label: 'Plan & Limits', sub: 'Subscription and resource usage' },
+      { icon: Settings, label: 'Organization Info', sub: 'Update name, description, branding' },
+    ],
+    href: '/settings', cta: 'Open Settings'
+  },
+]
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -39,22 +155,15 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem('token')
-      if (!token) {
-        router.push('/login')
-        return
-      }
+      if (!token) { router.push('/login'); return }
 
-      // Fetch analytics and org data in parallel
       const [analyticsRes, orgRes] = await Promise.all([
         fetch('/api/analytics', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/organization', { headers: { Authorization: `Bearer ${token}` } })
       ])
 
       if (!analyticsRes.ok || !orgRes.ok) {
-        if (analyticsRes.status === 401 || orgRes.status === 401) {
-          router.push('/login')
-          return
-        }
+        if (analyticsRes.status === 401 || orgRes.status === 401) { router.push('/login'); return }
         throw new Error('Failed to fetch dashboard data')
       }
 
@@ -70,34 +179,27 @@ export default function DashboardPage() {
         organizationName: orgData.organization.name
       })
     } catch (err: any) {
-      console.error('[v0] Dashboard fetch error:', err)
       setError(err.message || 'Failed to load dashboard')
     } finally {
       setLoading(false)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Activity className="w-12 h-12 mx-auto mb-4 text-gray-300 animate-pulse" />
-          <p className="text-gray-500">Loading dashboard...</p>
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <DashboardSkeleton />
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3 text-destructive mb-4">
-              <AlertCircle className="w-5 h-5" />
-              <p>{error}</p>
+      <div className="flex items-center justify-center min-h-[60vh] p-6" role="alert">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardContent className="pt-8 pb-6 text-center space-y-4">
+            <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-6 h-6 text-destructive" aria-hidden="true" />
             </div>
-            <Button onClick={() => window.location.reload()} className="w-full">
+            <div>
+              <p className="font-semibold text-foreground">Something went wrong</p>
+              <p className="text-sm text-muted-foreground mt-1">{error}</p>
+            </div>
+            <Button onClick={() => window.location.reload()} className="w-full" aria-label="Retry loading dashboard">
               Try Again
             </Button>
           </CardContent>
@@ -106,250 +208,141 @@ export default function DashboardPage() {
     )
   }
 
-  const quickActions = [
-    { label: 'Add Animal', icon: Plus, href: '/animals/new', color: 'bg-blue-100 text-blue-600' },
-    { label: 'View Analytics', icon: BarChart3, href: '/analytics', color: 'bg-purple-100 text-purple-600' },
-    { label: 'Manage Team', icon: Users, href: '/settings?tab=members', color: 'bg-green-100 text-green-600' },
-    { label: 'Settings', icon: Settings, href: '/settings', color: 'bg-gray-100 text-gray-600' }
-  ]
+  const healthPct = stats && stats.totalAnimals > 0
+    ? Math.round((stats.healthyCount / stats.totalAnimals) * 100)
+    : 0
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Welcome Header */}
-        <div>
-          <h1 className="text-4xl font-bold mb-2">Welcome to {stats?.organizationName}</h1>
-          <p className="text-gray-600">Enterprise Livestock Management System</p>
+    <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
+
+      {/* ── Header ── */}
+      <header className="stagger-child animate-fade-up space-y-1" style={{ animationFillMode: 'forwards' }}>
+        <div className="flex items-center gap-2">
+          <Leaf className="w-5 h-5 text-primary animate-leaf" aria-hidden="true" />
+          <span className="text-xs font-semibold tracking-widest uppercase text-primary">HerdWise Enterprise</span>
         </div>
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+          Welcome back,{' '}
+          <span className="text-primary">{stats?.organizationName}</span>
+        </h1>
+        <p className="text-muted-foreground">Your livestock operation at a glance — {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      </header>
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Animals</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{stats?.totalAnimals || 0}</div>
-              <p className="text-xs text-gray-500 mt-1">In your herd</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                <Heart className="w-4 h-4 text-green-600" />
-                Healthy
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">{stats?.healthyCount || 0}</div>
-              <p className="text-xs text-gray-500 mt-1">Animals</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-600" />
-                Sick
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-red-600">{stats?.sickCount || 0}</div>
-              <p className="text-xs text-gray-500 mt-1">Needing attention</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-blue-600" />
-                Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-blue-600">{stats?.recentActivityCount || 0}</div>
-              <p className="text-xs text-gray-500 mt-1">Recent records</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                <Users className="w-4 h-4 text-purple-600" />
-                Team
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-purple-600">{stats?.memberCount || 0}</div>
-              <p className="text-xs text-gray-500 mt-1">Members</p>
-            </CardContent>
-          </Card>
+      {/* ── Eco Banner ── */}
+      <div
+        className="eco-banner stagger-child animate-fade-up delay-100 rounded-2xl p-4 flex items-center gap-4"
+        style={{ animationFillMode: 'forwards' }}
+        role="complementary"
+        aria-label="Sustainability status"
+      >
+        <div className="p-2.5 bg-white/60 dark:bg-white/10 rounded-xl">
+          <Wind className="w-5 h-5 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
         </div>
-
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks and management tools</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {quickActions.map((action) => {
-                const Icon = action.icon
-                return (
-                  <Link key={action.href} href={action.href}>
-                    <Button
-                      variant="outline"
-                      className="w-full h-auto py-4 flex flex-col items-center gap-2"
-                    >
-                      <div className={`p-2 rounded-lg ${action.color}`}>
-                        <Icon className="w-6 h-6" />
-                      </div>
-                      <span className="text-sm font-medium text-center">{action.label}</span>
-                    </Button>
-                  </Link>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Feature Overview */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Animal Management</CardTitle>
-              <CardDescription>Comprehensive herd tracking and management</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg mt-1">
-                  <Plus className="w-4 h-4 text-blue-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">Track Animals</p>
-                  <p className="text-xs text-gray-600">Record details, breeds, genetics, and identification</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-green-100 rounded-lg mt-1">
-                  <Heart className="w-4 h-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">Health Monitoring</p>
-                  <p className="text-xs text-gray-600">Document vaccinations, treatments, and health status</p>
-                </div>
-              </div>
-              <Link href="/animals">
-                <Button variant="outline" className="w-full mt-3">
-                  Manage Animals
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Analytics & Reporting</CardTitle>
-              <CardDescription>Data-driven insights for your farm</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-purple-100 rounded-lg mt-1">
-                  <BarChart3 className="w-4 h-4 text-purple-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">Herd Metrics</p>
-                  <p className="text-xs text-gray-600">Track composition, health trends, and performance</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-orange-100 rounded-lg mt-1">
-                  <TrendingUp className="w-4 h-4 text-orange-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">Disease Tracking</p>
-                  <p className="text-xs text-gray-600">Monitor disease patterns and health alerts</p>
-                </div>
-              </div>
-              <Link href="/analytics">
-                <Button variant="outline" className="w-full mt-3">
-                  View Analytics
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Management</CardTitle>
-              <CardDescription>Collaborate with your farm team</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-indigo-100 rounded-lg mt-1">
-                  <Users className="w-4 h-4 text-indigo-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">Role-Based Access</p>
-                  <p className="text-xs text-gray-600">Admin, Manager, Veterinarian, Worker, Viewer roles</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-pink-100 rounded-lg mt-1">
-                  <Settings className="w-4 h-4 text-pink-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">Permissions</p>
-                  <p className="text-xs text-gray-600">Granular control over who can access what</p>
-                </div>
-              </div>
-              <Link href="/settings?tab=members">
-                <Button variant="outline" className="w-full mt-3">
-                  Manage Team
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Organization Settings</CardTitle>
-              <CardDescription>Configure your enterprise setup</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-teal-100 rounded-lg mt-1">
-                  <Activity className="w-4 h-4 text-teal-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">Plan & Limits</p>
-                  <p className="text-xs text-gray-600">Check your subscription and resource usage</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-yellow-100 rounded-lg mt-1">
-                  <Settings className="w-4 h-4 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">Organization Info</p>
-                  <p className="text-xs text-gray-600">Update name, description, and branding</p>
-                </div>
-              </div>
-              <Link href="/settings">
-                <Button variant="outline" className="w-full mt-3">
-                  Settings
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Sustainability Score: Excellent</p>
+          <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">Your herd management practices are carbon-efficient this quarter.</p>
         </div>
+        <span className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 stat-number hidden sm:block" aria-label="96 out of 100">96/100</span>
       </div>
+
+      {/* ── Key Metrics ── */}
+      <section aria-labelledby="metrics-heading">
+        <h2 id="metrics-heading" className="sr-only">Key Metrics</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <StatCard label="Total Animals" value={stats?.totalAnimals || 0} icon={Activity}
+            color="bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+            subtext="In your herd" delay={0} />
+          <StatCard label="Healthy" value={stats?.healthyCount || 0} icon={Heart}
+            color="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+            subtext="Animals well" delay={100} healthPct={healthPct} />
+          <StatCard label="Attention" value={stats?.sickCount || 0} icon={AlertCircle}
+            color="bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+            subtext="Needing care" delay={200} />
+          <StatCard label="Activity" value={stats?.recentActivityCount || 0} icon={TrendingUp}
+            color="bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400"
+            subtext="Recent records" delay={300} />
+          <StatCard label="Team" value={stats?.memberCount || 0} icon={Users}
+            color="bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+            subtext="Active members" delay={400} />
+        </div>
+      </section>
+
+      {/* ── Quick Actions ── */}
+      <section
+        className="stagger-child animate-fade-up delay-300 bg-card border border-border rounded-2xl p-5 shadow-sm"
+        style={{ animationFillMode: 'forwards' }}
+        aria-labelledby="quick-actions-heading"
+      >
+        <div className="mb-4">
+          <h2 id="quick-actions-heading" className="font-semibold text-lg">Quick Actions</h2>
+          <p className="text-sm text-muted-foreground">Common tasks and management tools</p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {QUICK_ACTIONS.map((action) => {
+            const Icon = action.icon
+            return (
+              <Link key={action.href} href={action.href}>
+                <div className="card-hover group border border-border rounded-xl p-4 flex flex-col items-start gap-3 cursor-pointer bg-background hover:border-primary/30 transition-all duration-200 focus-within:ring-2 focus-within:ring-ring">
+                  <span className={`p-2 rounded-xl ${action.color} transition-transform duration-200 group-hover:scale-110`} aria-hidden="true">
+                    <Icon className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">{action.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{action.desc}</p>
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* ── Feature Cards ── */}
+      <section aria-labelledby="features-heading">
+        <h2 id="features-heading" className="font-semibold text-lg mb-4">Feature Overview</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {FEATURES.map((feature, i) => {
+            const FeatureIcon = feature.icon
+            return (
+              <article
+                key={feature.title}
+                className={`stagger-child animate-fade-up card-hover bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col gap-4`}
+                style={{ animationDelay: `${400 + i * 80}ms`, animationFillMode: 'forwards' }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`p-2.5 rounded-xl ${feature.color}`} aria-hidden="true">
+                    <FeatureIcon className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-semibold text-base">{feature.title}</h3>
+                    <p className="text-xs text-muted-foreground">{feature.desc}</p>
+                  </div>
+                </div>
+                <div className="space-y-2.5">
+                  {feature.items.map(({ icon: ItemIcon, label, sub }) => (
+                    <div key={label} className="flex items-start gap-3 p-2.5 rounded-xl bg-muted/40">
+                      <ItemIcon className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" aria-hidden="true" />
+                      <div>
+                        <p className="text-sm font-medium">{label}</p>
+                        <p className="text-xs text-muted-foreground">{sub}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Link href={feature.href} className="mt-auto">
+                  <Button variant="outline" className="w-full group hover:bg-primary hover:text-primary-foreground transition-colors" aria-label={`${feature.cta} — ${feature.title}`}>
+                    {feature.cta}
+                    <ArrowRight className="w-4 h-4 ml-2 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
+                  </Button>
+                </Link>
+              </article>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* ── Bottom padding for mobile ── */}
+      <div className="h-4" aria-hidden="true" />
     </div>
   )
 }

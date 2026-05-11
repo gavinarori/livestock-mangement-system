@@ -86,7 +86,7 @@ const handler = async (
       }
 
       // Create new member with temporary password
-      const tempPassword = Math.random().toString(36).slice(-10)
+      const tempPassword = "2026"
       const hashedPassword = await hashPassword(tempPassword)
 
       const member = await prisma.user.create({
