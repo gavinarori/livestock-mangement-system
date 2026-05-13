@@ -41,6 +41,293 @@ interface AnimalNode {
   inbreedingCoeff?: number
 }
 
+// ── Mock Heat Cycles ───────────────────────────────────────────
+const mockHeatCycles: HeatCycle[] = [
+  {
+    _id: 'heat-001',
+    animalId: 'cow-001',
+    animalName: 'Bella',
+    lastHeatDate: '2026-04-20',
+    nextExpectedDate: '2026-05-11',
+    cycleLengthDays: 21,
+    status: 'active',
+  },
+  {
+    _id: 'heat-002',
+    animalId: 'cow-002',
+    animalName: 'Daisy',
+    lastHeatDate: '2026-04-25',
+    nextExpectedDate: '2026-05-16',
+    cycleLengthDays: 21,
+    status: 'expected',
+  },
+  {
+    _id: 'heat-003',
+    animalId: 'goat-001',
+    animalName: 'Luna',
+    lastHeatDate: '2026-03-28',
+    nextExpectedDate: '2026-04-18',
+    cycleLengthDays: 21,
+    status: 'overdue',
+  },
+  {
+    _id: 'heat-004',
+    animalId: 'cow-003',
+    animalName: 'Rosie',
+    lastHeatDate: '2026-04-01',
+    nextExpectedDate: '2026-04-22',
+    cycleLengthDays: 21,
+    status: 'bred',
+  },
+  {
+    _id: 'heat-005',
+    animalId: 'sheep-001',
+    animalName: 'Snow',
+    lastHeatDate: '2026-04-30',
+    nextExpectedDate: '2026-05-21',
+    cycleLengthDays: 21,
+    status: 'expected',
+  },
+  {
+    _id: 'heat-006',
+    animalId: 'cow-004',
+    animalName: 'Molly',
+    lastHeatDate: '2026-04-19',
+    nextExpectedDate: '2026-05-10',
+    cycleLengthDays: 21,
+    status: 'active',
+  },
+]
+
+// ── Mock Breeding Records ─────────────────────────────────────
+const mockBreedingRecords: BreedingRecord[] = [
+  {
+    _id: 'breed-001',
+    damId: 'cow-001',
+    damName: 'Bella',
+    sireId: 'bull-001',
+    sireName: 'Titan',
+    breedingDate: '2026-03-15',
+    outcome: 'successful',
+    offspringCount: 1,
+    notes: 'Healthy calf delivered with no complications.',
+    inbreedingCoeff: 0.021,
+  },
+  {
+    _id: 'breed-002',
+    damId: 'cow-002',
+    damName: 'Daisy',
+    sireId: 'bull-002',
+    sireName: 'Maximus',
+    breedingDate: '2026-04-02',
+    outcome: 'pending',
+    notes: 'Pregnancy confirmation scheduled next week.',
+    inbreedingCoeff: 0.067,
+  },
+  {
+    _id: 'breed-003',
+    damId: 'goat-001',
+    damName: 'Luna',
+    sireId: 'buck-001',
+    sireName: 'Rocky',
+    breedingDate: '2026-02-20',
+    outcome: 'unsuccessful',
+    notes: 'No conception detected after scan.',
+    inbreedingCoeff: 0.143,
+  },
+  {
+    _id: 'breed-004',
+    damId: 'cow-003',
+    damName: 'Rosie',
+    sireId: 'bull-003',
+    sireName: 'Apollo',
+    breedingDate: '2026-01-28',
+    outcome: 'successful',
+    offspringCount: 2,
+    notes: 'Twin calves delivered successfully.',
+    inbreedingCoeff: 0.031,
+  },
+  {
+    _id: 'breed-005',
+    damId: 'sheep-001',
+    damName: 'Snow',
+    sireId: 'ram-001',
+    sireName: 'Blizzard',
+    breedingDate: '2026-04-10',
+    outcome: 'pending',
+    inbreedingCoeff: 0.182,
+  },
+  {
+    _id: 'breed-006',
+    damId: 'cow-004',
+    damName: 'Molly',
+    sireId: 'bull-002',
+    sireName: 'Maximus',
+    breedingDate: '2026-03-02',
+    outcome: 'successful',
+    offspringCount: 1,
+    notes: 'Strong calf with above-average weight.',
+    inbreedingCoeff: 0.044,
+  },
+]
+
+// ── Mock Animal Lineage Data ──────────────────────────────────
+const mockAnimals: AnimalNode[] = [
+  {
+    _id: 'cow-001',
+    name: 'Bella',
+    type: 'cow',
+    breed: 'Friesian',
+    gender: 'female',
+    sireId: 'bull-001',
+    damId: 'cow-010',
+    sireName: 'Titan',
+    damName: 'Grace',
+    inbreedingCoeff: 0.021,
+  },
+  {
+    _id: 'cow-002',
+    name: 'Daisy',
+    type: 'cow',
+    breed: 'Jersey',
+    gender: 'female',
+    sireId: 'bull-002',
+    damId: 'cow-011',
+    sireName: 'Maximus',
+    damName: 'Ruby',
+    inbreedingCoeff: 0.067,
+  },
+  {
+    _id: 'cow-003',
+    name: 'Rosie',
+    type: 'cow',
+    breed: 'Ayrshire',
+    gender: 'female',
+    sireId: 'bull-003',
+    damId: 'cow-012',
+    sireName: 'Apollo',
+    damName: 'Misty',
+    inbreedingCoeff: 0.031,
+  },
+  {
+    _id: 'cow-004',
+    name: 'Molly',
+    type: 'cow',
+    breed: 'Friesian',
+    gender: 'female',
+    sireId: 'bull-002',
+    damId: 'cow-010',
+    sireName: 'Maximus',
+    damName: 'Grace',
+    inbreedingCoeff: 0.044,
+  },
+  {
+    _id: 'goat-001',
+    name: 'Luna',
+    type: 'goat',
+    breed: 'Boer',
+    gender: 'female',
+    sireId: 'buck-001',
+    damId: 'goat-010',
+    sireName: 'Rocky',
+    damName: 'Pearl',
+    inbreedingCoeff: 0.143,
+  },
+  {
+    _id: 'sheep-001',
+    name: 'Snow',
+    type: 'sheep',
+    breed: 'Merino',
+    gender: 'female',
+    sireId: 'ram-001',
+    damId: 'sheep-010',
+    sireName: 'Blizzard',
+    damName: 'Wooly',
+    inbreedingCoeff: 0.182,
+  },
+
+  // ── Parents ──
+  {
+    _id: 'bull-001',
+    name: 'Titan',
+    type: 'bull',
+    breed: 'Friesian',
+    gender: 'male',
+    inbreedingCoeff: 0.011,
+  },
+  {
+    _id: 'bull-002',
+    name: 'Maximus',
+    type: 'bull',
+    breed: 'Jersey',
+    gender: 'male',
+    inbreedingCoeff: 0.025,
+  },
+  {
+    _id: 'bull-003',
+    name: 'Apollo',
+    type: 'bull',
+    breed: 'Ayrshire',
+    gender: 'male',
+    inbreedingCoeff: 0.019,
+  },
+  {
+    _id: 'buck-001',
+    name: 'Rocky',
+    type: 'buck',
+    breed: 'Boer',
+    gender: 'male',
+    inbreedingCoeff: 0.088,
+  },
+  {
+    _id: 'ram-001',
+    name: 'Blizzard',
+    type: 'ram',
+    breed: 'Merino',
+    gender: 'male',
+    inbreedingCoeff: 0.151,
+  },
+  {
+    _id: 'cow-010',
+    name: 'Grace',
+    type: 'cow',
+    breed: 'Friesian',
+    gender: 'female',
+    inbreedingCoeff: 0.018,
+  },
+  {
+    _id: 'cow-011',
+    name: 'Ruby',
+    type: 'cow',
+    breed: 'Jersey',
+    gender: 'female',
+    inbreedingCoeff: 0.041,
+  },
+  {
+    _id: 'cow-012',
+    name: 'Misty',
+    type: 'cow',
+    breed: 'Ayrshire',
+    gender: 'female',
+    inbreedingCoeff: 0.023,
+  },
+  {
+    _id: 'goat-010',
+    name: 'Pearl',
+    type: 'goat',
+    breed: 'Boer',
+    gender: 'female',
+    inbreedingCoeff: 0.072,
+  },
+  {
+    _id: 'sheep-010',
+    name: 'Wooly',
+    type: 'sheep',
+    breed: 'Merino',
+    gender: 'female',
+    inbreedingCoeff: 0.132,
+  },
+]
 // ── Sub-components ─────────────────────────────────────────────
 const StatCard = ({ icon: Icon, label, value, sub, color = 'primary' }: any) => (
   <div className="card-hover bg-card border border-border rounded-2xl p-5 flex items-center gap-4">
@@ -140,11 +427,26 @@ export default function BreedingPage() {
   const [error, setError] = useState('')
   const router = useRouter()
 
+  /*
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (!token) { router.push('/login'); return }
     loadAll(token)
   }, [router])
+  */
+
+  useEffect(() => {
+  setLoading(true)
+
+  setTimeout(() => {
+    setHeatCycles(mockHeatCycles)
+    setBreedingRecords(mockBreedingRecords)
+    setAnimals(mockAnimals)
+    setSelectedAnimal(mockAnimals[0])
+
+    setLoading(false)
+  }, 1200)
+}, [])
 
   const loadAll = async (token: string) => {
     try {
