@@ -4,9 +4,8 @@ generator client {
 
 datasource db {
   provider = "mongodb"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
-
 
 enum UserRole {
   ADMIN
@@ -59,142 +58,228 @@ enum DiseaseCategory {
   OTHER
 }
 
+enum BreedingOutcome {
+  PENDING
+  SUCCESSFUL
+  UNSUCCESSFUL
+}
 
+enum BreedingMethod {
+  NATURAL
+  ARTIFICIAL_INSEMINATION
+  EMBRYO_TRANSFER
+}
+
+enum HeatCycleStatus {
+  ACTIVE
+  EXPECTED
+  OVERDUE
+  BRED
+}
 
 model Organization {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  slug          String   @unique
-  description   String?
-  logo          String?
-  subscription  String   @default("free")
-  maxAnimals    Int      @default(100)
-  maxMembers    Int      @default(5)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  slug        String   @unique
+  description String?
+  logo        String?
+  subscription String  @default("free")
+  maxAnimals  Int      @default(100)
+  maxMembers  Int      @default(5)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  members       User[]
-  animals       Animal[]
-  healthRecords HealthRecord[]
+  members         User[]
+  animals         Animal[]
+  healthRecords   HealthRecord[]
   veterinaryNotes VeterinaryNote[]
-  breedings     Breeding[]
-  shares        AnimalShare[]
+  breedings       Breeding[]
+  heatCycles      HeatCycle[]
+  shares          AnimalShare[]
 }
 
 model User {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  email          String   @unique
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  email          String       @unique
   name           String
   password       String
-  role           UserRole @default(VIEWER)
-
+  role           UserRole     @default(VIEWER)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId String   @db.ObjectId
+  organizationId String       @db.ObjectId
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdBreedings Breeding[]  @relation("BreedingCreatedBy")
+  updatedBreedings Breeding[]  @relation("BreedingUpdatedBy")
+  createdHeatCycles HeatCycle[] @relation("HeatCycleCreatedBy")
 
   @@index([organizationId])
 }
 
-
-
 model Animal {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  name            String
-  type            AnimalType
-  breed           String
-  dateOfBirth     DateTime
-  gender          AnimalGender
+  id               String       @id @default(auto()) @map("_id") @db.ObjectId
+  name             String
+  type             AnimalType
+  breed            String
+  dateOfBirth      DateTime
+  gender           AnimalGender
   identificationId String?
-  healthStatus    HealthStatus @default(HEALTHY)
+  healthStatus     HealthStatus @default(HEALTHY)
 
-  weight          Float?
-  height          Float?
-  color           String?
-  distinctMarks   String?
+  weight        Float?
+  height        Float?
+  color         String?
+  distinctMarks String?
 
-  parentMale      Animal? @relation("OffspringMale", fields: [parentMaleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  parentMaleId    String? @db.ObjectId
-
-  parentFemale    Animal? @relation("OffspringFemale", fields: [parentFemaleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  parentFemaleId  String? @db.ObjectId
+  parentMale     Animal?  @relation("OffspringMale", fields: [parentMaleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parentMaleId   String?  @db.ObjectId
+  parentFemale   Animal?  @relation("OffspringFemale", fields: [parentFemaleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parentFemaleId String?  @db.ObjectId
 
   offspring       Animal[] @relation("OffspringMale")
   offspringFemale Animal[] @relation("OffspringFemale")
 
-  notes           String?
-  location        String?
-  acquisitionDate DateTime?
+  notes            String?
+  location         String?
+  acquisitionDate  DateTime?
   acquisitionPrice Float?
+  inbreedingCoeff  Float?   @default(0)
 
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId  String       @db.ObjectId
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String       @db.ObjectId
 
   healthRecords   HealthRecord[]
   veterinaryNotes VeterinaryNote[]
-  breedings       Breeding[] @relation("Animal")
-  breedingsOf     Breeding[] @relation("BreedingAnimal")
-  shares          AnimalShare[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  // Breeding relations - dam (female) and sire (male)
+  breedingsAsDam  Breeding[] @relation("BreedingDam")
+  breedingsAsSire Breeding[] @relation("BreedingSire")
+
+  heatCycles HeatCycle[]
+  shares     AnimalShare[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([organizationId])
   @@index([type])
+  @@index([gender])
   @@index([healthStatus])
 }
 
+model Breeding {
+  id             String          @id @default(auto()) @map("_id") @db.ObjectId
 
+  // Dam = mother (must be FEMALE)
+  dam            Animal          @relation("BreedingDam", fields: [damId], references: [id], onDelete: Cascade)
+  damId          String          @db.ObjectId
+
+  // Sire = father (must be MALE)
+  sire           Animal          @relation("BreedingSire", fields: [sireId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sireId         String          @db.ObjectId
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String          @db.ObjectId
+
+  breedingDate      DateTime
+  method            BreedingMethod  @default(NATURAL)
+  outcome           BreedingOutcome @default(PENDING)
+  offspringCount    Int?
+  expectedBirthDate DateTime?
+  actualBirthDate   DateTime?
+  inbreedingCoeff   Float?          @default(0)
+
+  // Veterinary / tracking fields
+  confirmedPregnancy Boolean?  @default(false)
+  pregnancyCheckDate  DateTime?
+  veterinarian        String?
+  location            String?
+  notes               String?
+  attachments         String[]
+
+  createdBy      User     @relation("BreedingCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdById    String   @db.ObjectId
+  updatedBy      User?    @relation("BreedingUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  updatedById    String?  @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([damId])
+  @@index([sireId])
+  @@index([organizationId])
+  @@index([breedingDate])
+  @@index([outcome])
+}
+
+model HeatCycle {
+  id             String          @id @default(auto()) @map("_id") @db.ObjectId
+
+  animal         Animal          @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animalId       String          @db.ObjectId
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String          @db.ObjectId
+
+  lastHeatDate      DateTime
+  nextExpectedDate  DateTime
+  cycleLengthDays   Int      @default(21)
+  status            HeatCycleStatus @default(EXPECTED)
+  intensity         String?  // mild, moderate, strong
+  observedBy        String?
+  notes             String?
+
+  createdBy      User     @relation("HeatCycleCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdById    String   @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([animalId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([nextExpectedDate])
+}
 
 model HealthRecord {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  animal         Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animalId       String   @db.ObjectId
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String   @db.ObjectId
 
-  animal          Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
-  animalId        String   @db.ObjectId
-
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId  String   @db.ObjectId
-
-  recordType      String
-  description     String
-  date            DateTime
-  recordedBy      String
-
-  vaccineName     String?
+  recordType        String
+  description       String
+  date              DateTime
+  recordedBy        String
+  vaccineName       String?
   vaccinationStatus VaccinationStatus?
-  nextDueDate     DateTime?
+  nextDueDate       DateTime?
+  diagnosis         String?
+  diseaseCategory   DiseaseCategory?
+  severity          String?
+  treatment         String?
+  outcome           String?
+  temperature       Float?
+  weight            Float?
+  notes             String?
+  attachments       String[]
 
-  diagnosis       String?
-  diseaseCategory DiseaseCategory?
-  severity        String?
-  treatment       String?
-  outcome         String?
-
-  temperature     Float?
-  weight          Float?
-  notes           String?
-  attachments     String[]
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([animalId])
   @@index([organizationId])
   @@index([date])
 }
 
-
-
 model VeterinaryNote {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-
-  animal          Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
-  animalId        String   @db.ObjectId
-
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId  String   @db.ObjectId
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  animal         Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animalId       String   @db.ObjectId
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String   @db.ObjectId
 
   veterinarian    String
   date            DateTime
@@ -203,62 +288,30 @@ model VeterinaryNote {
   recommendations String
   prescriptions   String?
   followUpDate    DateTime?
-
   notes           String?
   attachments     String[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([animalId])
   @@index([organizationId])
 }
-
-
-
-model Breeding {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-
-  animal           Animal   @relation("Animal", fields: [animalId], references: [id], onDelete: Cascade)
-  animalId         String   @db.ObjectId
-
-  breedingAnimal   Animal   @relation("BreedingAnimal", fields: [breedingAnimalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  breedingAnimalId String   @db.ObjectId
-
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId   String   @db.ObjectId
-
-  breedingDate     DateTime
-  expectedBirthDate DateTime?
-  actualBirthDate  DateTime?
-  notes            String?
-  offspring        Int?
-
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@index([animalId])
-  @@index([organizationId])
-}
-
-
 
 model AnimalShare {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  animal         Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animalId       String   @db.ObjectId
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String   @db.ObjectId
 
-  animal          Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
-  animalId        String   @db.ObjectId
+  shareCode  String   @unique
+  isPublic   Boolean  @default(false)
+  expiresAt  DateTime?
+  viewCount  Int      @default(0)
 
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId  String   @db.ObjectId
-
-  shareCode       String   @unique
-  isPublic        Boolean  @default(false)
-  expiresAt       DateTime?
-  viewCount       Int      @default(0)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([organizationId])
 }
