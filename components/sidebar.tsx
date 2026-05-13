@@ -4,17 +4,105 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, Beef, BarChart3, Settings, ChevronLeft,
-  ChevronRight, Leaf, Bell, Search, Moon, Sun, LogOut,
-  Activity, Users, Menu, X
+  LayoutDashboard,
+  Beef,
+  BarChart3,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Leaf,
+  Bell,
+  Search,
+  Moon,
+  Sun,
+  LogOut,
+  Activity,
+  Users,
+  Menu,
+  X,
+  Boxes,
+  Dna,
+  ShieldCheck,
+  HeartPulse,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
-  { href: '/animals', label: 'Animals', icon: Beef, badge: null },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3, badge: null },
-  { href: '/settings', label: 'Settings', icon: Settings, badge: null },
-  { href: '/healthy', label: 'Healthy', icon: Leaf, badge: null },
+  // ── Main Overview ─────────────────────────
+  {
+    section: 'Overview',
+    items: [
+      {
+        href: '/dashboard',
+        label: 'Dashboard',
+        icon: LayoutDashboard,
+        badge: null,
+        description: 'Farm overview & live activity',
+      },
+      {
+        href: '/analytics',
+        label: 'Analytics',
+        icon: BarChart3,
+        badge: null,
+        description: 'Performance insights & reports',
+      },
+    ],
+  },
+
+  // ── Livestock Operations ──────────────────
+  {
+    section: 'Livestock',
+    items: [
+      {
+        href: '/animals',
+        label: 'Animals',
+        icon: Beef,
+        badge: null,
+        description: 'Manage livestock records',
+      },
+      {
+        href: '/breeding',
+        label: 'Breeding',
+        icon: Dna,
+        badge: '3',
+        description: 'Heat cycles & genetics',
+      },
+      {
+        href: '/healthy',
+        label: 'Health',
+        icon: HeartPulse,
+        badge: '2',
+        description: 'Vaccinations & treatments',
+      },
+    ],
+  },
+
+  // ── Farm Resources ────────────────────────
+  {
+    section: 'Resources',
+    items: [
+      {
+        href: '/inventory',
+        label: 'Inventory',
+        icon: Boxes,
+        badge: '5',
+        description: 'Feed, medicine & equipment',
+      },
+    ],
+  },
+
+  // ── System ────────────────────────────────
+  {
+    section: 'System',
+    items: [
+      {
+        href: '/settings',
+        label: 'Settings',
+        icon: Settings,
+        badge: null,
+        description: 'Preferences & configuration',
+      },
+    ],
+  },
 ]
 
 export function AppSidebar({ children }: { children: React.ReactNode }) {
@@ -53,42 +141,83 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2 py-4 space-y-1" aria-label="Primary navigation">
-        {NAV_ITEMS.map(({ href, label, icon: Icon, badge }) => {
-          const active = pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={active ? 'page' : undefined}
-              className={`
-                group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
-                transition-all duration-200 relative overflow-hidden
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring
-                ${active
-                  ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/20'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                }
-                ${collapsed ? 'justify-center' : ''}
-              `}
-            >
-              {active && (
-                <span className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent pointer-events-none" aria-hidden="true" />
-              )}
-              <Icon className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${active ? 'text-sidebar-primary-foreground' : ''}`} aria-hidden="true" />
-              {!collapsed && (
-                <span className="truncate">{label}</span>
-              )}
-              {!collapsed && badge && (
-                <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">{badge}</span>
-              )}
-              {collapsed && (
-                <span className="sr-only">{label}</span>
-              )}
-            </Link>
-          )
-        })}
-      </nav>
+      <nav className="flex-1 px-2 py-4 overflow-y-auto" aria-label="Primary navigation">
+  <div className="space-y-6">
+    {NAV_ITEMS.map(group => (
+      <div key={group.section}>
+        {!collapsed && (
+          <p className="px-3 mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-sidebar-foreground/40">
+            {group.section}
+          </p>
+        )}
+
+        <div className="space-y-1">
+          {group.items.map(({ href, label, icon: Icon, badge, description }) => {
+            const active = pathname.startsWith(href)
+
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? 'page' : undefined}
+                className={`
+                  group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
+                  transition-all duration-200 relative overflow-hidden
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring
+                  ${active
+                    ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/20'
+                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                  }
+                  ${collapsed ? 'justify-center' : ''}
+                `}
+              >
+                {active && (
+                  <span
+                    className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent pointer-events-none"
+                    aria-hidden="true"
+                  />
+                )}
+
+                <Icon
+                  className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+                    active ? 'text-sidebar-primary-foreground' : ''
+                  }`}
+                  aria-hidden="true"
+                />
+
+                {!collapsed && (
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate">{label}</div>
+
+                    <div
+                      className={`text-[11px] truncate ${
+                        active
+                          ? 'text-sidebar-primary-foreground/70'
+                          : 'text-sidebar-foreground/40'
+                      }`}
+                    >
+                      {description}
+                    </div>
+                  </div>
+                )}
+
+                {!collapsed && badge && (
+                  <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {badge}
+                  </span>
+                )}
+
+                {collapsed && (
+                  <span className="sr-only">{label}</span>
+                )}
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+    ))}
+  </div>
+</nav>
 
       {/* Bottom tools */}
       <div className={`px-2 py-4 border-t border-sidebar-border space-y-1`}>
