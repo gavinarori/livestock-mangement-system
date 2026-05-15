@@ -40,6 +40,21 @@ export function LoginForm() {
       }
 
       localStorage.setItem('token', data.token)
+
+// Store authenticated user data
+localStorage.setItem(
+  'user',
+  JSON.stringify({
+    id: data.user?._id,
+    name: data.user?.name,
+    email: data.user?.email,
+    role: data.user?.role || 'farmer',
+    farmName: data.user?.farmName || 'HerdWise Farm',
+    avatar: data.user?.avatar || null,
+  })
+)
+
+
       router.push('/animals')
     } catch (err) {
       setError('Failed to connect to server')

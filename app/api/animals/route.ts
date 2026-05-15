@@ -1,82 +1,130 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDB } from '@/lib/db/client'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth/utils'
 import { CreateAnimalSchema } from '@/lib/validations'
-import { ObjectId } from 'mongodb'
 
-// GET: Fetch all animals for the user
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
 
     if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
     const payload = verifyToken(token)
+
     if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      )
     }
 
-    const db = await getDB()
-    const animalsCollection = db.collection('animals')
-
-    const animals = await animalsCollection
-      .find({ userId: new ObjectId(payload.userId) })
-      .sort({ createdAt: -1 })
-      .toArray()
+    const animals = await prisma.animal.findMany({
+      where: {
+        organizationId: payload.organizationId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        healthRecords: true,
+        veterinaryNotes: true,
+        heatCycles: true,
+        breedingsAsDam: true,
+        breedingsAsSire: true,
+      },
+    })
 
     return NextResponse.json({ animals })
-  } catch (error: any) {
-    console.error('[v0] Get animals error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch (error) {
+    console.error('[GET_ANIMALS_ERROR]', error)
+
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }
 
-// POST: Create a new animal
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
 
     if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
     const payload = verifyToken(token)
+
     if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      )
     }
 
     const body = await req.json()
+
     const validated = CreateAnimalSchema.parse(body)
 
-    const db = await getDB()
-    const animalsCollection = db.collection('animals')
+    const animal = await prisma.animal.create({
+      data: {
+        name: validated.name,
+        type: validated.type,
+        breed: validated.breed,
+        gender: validated.gender,
+        dateOfBirth: new Date(validated.dateOfBirth),
 
-    const dateOfBirth = validated.dateOfBirth ? new Date(validated.dateOfBirth) : undefined
+        identificationId: validated.identificationId,
+        healthStatus: validated.healthStatus,
 
-    const result = await animalsCollection.insertOne({
-      userId: new ObjectId(payload.userId),
-      ...validated,
-      dateOfBirth,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+        weight: validated.weight,
+        height: validated.height,
+        color: validated.color,
+        distinctMarks: validated.distinctMarks,
+
+        notes: validated.notes,
+        location: validated.location,
+
+        acquisitionDate: validated.acquisitionDate
+          ? new Date(validated.acquisitionDate)
+          : undefined,
+
+        acquisitionPrice: validated.acquisitionPrice,
+
+        organizationId: payload.organizationId,
+      },
     })
 
     return NextResponse.json(
       {
         message: 'Animal created successfully',
-        animal: { _id: result.insertedId, ...validated, dateOfBirth },
+        animal,
       },
       { status: 201 }
     )
   } catch (error: any) {
-    console.error('[v0] Create animal error:', error)
+    console.error('[CREATE_ANIMAL_ERROR]', error)
+
     if (error.name === 'ZodError') {
-      return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+      return NextResponse.json(
+        { error: error.errors[0].message },
+        { status: 400 }
+      )
     }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }
