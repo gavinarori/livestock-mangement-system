@@ -5,6 +5,7 @@ import { CreateAnimalSchema } from '@/lib/validations'
 
 export async function GET(req: NextRequest) {
   try {
+    // Get token
     const authHeader = req.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
 
@@ -15,37 +16,111 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    // Verify token
     const payload = verifyToken(token)
 
-    if (!payload) {
+    if (!payload?.organizationId) {
       return NextResponse.json(
         { error: 'Invalid token' },
         { status: 401 }
       )
     }
 
+    // Fetch animals
     const animals = await prisma.animal.findMany({
       where: {
         organizationId: payload.organizationId,
       },
+
       orderBy: {
         createdAt: 'desc',
       },
+
       include: {
-        healthRecords: true,
-        veterinaryNotes: true,
-        heatCycles: true,
-        breedingsAsDam: true,
-        breedingsAsSire: true,
+        // Recent health records
+        healthRecords: {
+          orderBy: {
+            date: 'desc',
+          },
+          take: 5,
+        },
+
+        // Recent vet notes
+        veterinaryNotes: {
+          orderBy: {
+            date: 'desc',
+          },
+          take: 5,
+        },
+
+        // Recent heat cycles
+        heatCycles: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 5,
+        },
+
+        // Breedings where animal is dam
+        breedingsAsDam: {
+          include: {
+            sire: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                breed: true,
+                gender: true,
+                healthStatus: true,
+              },
+            },
+          },
+
+          orderBy: {
+            breedingDate: 'desc',
+          },
+
+          take: 5,
+        },
+
+        // Breedings where animal is sire
+        breedingsAsSire: {
+          include: {
+            dam: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                breed: true,
+                gender: true,
+                healthStatus: true,
+              },
+            },
+          },
+
+          orderBy: {
+            breedingDate: 'desc',
+          },
+
+          take: 5,
+        },
       },
     })
 
-    return NextResponse.json({ animals })
-  } catch (error) {
+    return NextResponse.json(
+      {
+        animals,
+      },
+      { status: 200 }
+    )
+  } catch (error: any) {
     console.error('[GET_ANIMALS_ERROR]', error)
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: 'Internal server error',
+        details: error.message,
+      },
       { status: 500 }
     )
   }
@@ -53,6 +128,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Get token
     const authHeader = req.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
 
@@ -63,29 +139,56 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Verify token
     const payload = verifyToken(token)
 
-    if (!payload) {
+    if (!payload?.organizationId) {
       return NextResponse.json(
         { error: 'Invalid token' },
         { status: 401 }
       )
     }
 
+    // Parse body
     const body = await req.json()
 
+    // Validate input
     const validated = CreateAnimalSchema.parse(body)
 
+    // Check duplicate identification ID
+    if (validated.identificationId) {
+      const existingAnimal = await prisma.animal.findFirst({
+        where: {
+          identificationId: validated.identificationId,
+          organizationId: payload.organizationId,
+        },
+      })
+
+      if (existingAnimal) {
+        return NextResponse.json(
+          {
+            error: 'Animal identification already exists',
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Create animal
     const animal = await prisma.animal.create({
       data: {
         name: validated.name,
         type: validated.type,
         breed: validated.breed,
         gender: validated.gender,
+
         dateOfBirth: new Date(validated.dateOfBirth),
 
-        identificationId: validated.identificationId,
-        healthStatus: validated.healthStatus,
+        identificationId:
+          validated.identificationId || undefined,
+
+        healthStatus:
+          validated.healthStatus || 'HEALTHY',
 
         weight: validated.weight,
         height: validated.height,
@@ -99,7 +202,8 @@ export async function POST(req: NextRequest) {
           ? new Date(validated.acquisitionDate)
           : undefined,
 
-        acquisitionPrice: validated.acquisitionPrice,
+        acquisitionPrice:
+          validated.acquisitionPrice,
 
         organizationId: payload.organizationId,
       },
@@ -115,15 +219,31 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('[CREATE_ANIMAL_ERROR]', error)
 
+    // Zod validation error
     if (error.name === 'ZodError') {
       return NextResponse.json(
-        { error: error.errors[0].message },
+        {
+          error: error.errors?.[0]?.message || 'Validation error',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Prisma duplicate errors
+    if (error.code === 'P2002') {
+      return NextResponse.json(
+        {
+          error: 'Duplicate field value detected',
+        },
         { status: 400 }
       )
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: 'Internal server error',
+        details: error.message,
+      },
       { status: 500 }
     )
   }
