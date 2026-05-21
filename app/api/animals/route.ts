@@ -3,248 +3,91 @@ import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth/utils'
 import { CreateAnimalSchema } from '@/lib/validations'
 
+/* -------------------------------------------------------
+   GET  /api/animals  — list all animals for the org
+------------------------------------------------------- */
 export async function GET(req: NextRequest) {
   try {
-    // Get token
     const authHeader = req.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
 
     if (!token) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify token
     const payload = verifyToken(token)
-
-    if (!payload?.organizationId) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      )
+    if (!payload) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Fetch animals
+    // Optional query params for filtering
+    const { searchParams } = new URL(req.url)
+    const type        = searchParams.get('type')        ?? undefined
+    const healthStatus = searchParams.get('healthStatus') ?? undefined
+    const search      = searchParams.get('search')      ?? undefined
+
     const animals = await prisma.animal.findMany({
       where: {
         organizationId: payload.organizationId,
+        ...(type         ? { type:         type         as any } : {}),
+        ...(healthStatus ? { healthStatus: healthStatus as any } : {}),
+        ...(search       ? { name: { contains: search, mode: 'insensitive' } } : {}),
       },
-
-      orderBy: {
-        createdAt: 'desc',
-      },
-
-      include: {
-        // Recent health records
-        healthRecords: {
-          orderBy: {
-            date: 'desc',
-          },
-          take: 5,
-        },
-
-        // Recent vet notes
-        veterinaryNotes: {
-          orderBy: {
-            date: 'desc',
-          },
-          take: 5,
-        },
-
-        // Recent heat cycles
-        heatCycles: {
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 5,
-        },
-
-        // Breedings where animal is dam
-        breedingsAsDam: {
-          include: {
-            sire: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-                breed: true,
-                gender: true,
-                healthStatus: true,
-              },
-            },
-          },
-
-          orderBy: {
-            breedingDate: 'desc',
-          },
-
-          take: 5,
-        },
-
-        // Breedings where animal is sire
-        breedingsAsSire: {
-          include: {
-            dam: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-                breed: true,
-                gender: true,
-                healthStatus: true,
-              },
-            },
-          },
-
-          orderBy: {
-            breedingDate: 'desc',
-          },
-
-          take: 5,
-        },
-      },
+      orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json(
-      {
-        animals,
-      },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    console.error('[GET_ANIMALS_ERROR]', error)
-
-    return NextResponse.json(
-      {
-        error: 'Internal server error',
-        details: error.message,
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ animals })
+  } catch (error) {
+    console.error('[GET animals error]', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
+/* -------------------------------------------------------
+   POST  /api/animals  — create a new animal
+------------------------------------------------------- */
 export async function POST(req: NextRequest) {
   try {
-    // Get token
     const authHeader = req.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
 
     if (!token) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify token
     const payload = verifyToken(token)
-
-    if (!payload?.organizationId) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      )
+    if (!payload) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Parse body
     const body = await req.json()
 
-    // Validate input
+    // Zod now strips nulls → undefined, so Prisma never sees a null for
+    // optional fields that don't accept null.
     const validated = CreateAnimalSchema.parse(body)
 
-    // Check duplicate identification ID
-    if (validated.identificationId) {
-      const existingAnimal = await prisma.animal.findFirst({
-        where: {
-          identificationId: validated.identificationId,
-          organizationId: payload.organizationId,
-        },
-      })
-
-      if (existingAnimal) {
-        return NextResponse.json(
-          {
-            error: 'Animal identification already exists',
-          },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Create animal
     const animal = await prisma.animal.create({
       data: {
-        name: validated.name,
-        type: validated.type,
-        breed: validated.breed,
-        gender: validated.gender,
-
-        dateOfBirth: new Date(validated.dateOfBirth),
-
-        identificationId:
-          validated.identificationId || undefined,
-
-        healthStatus:
-          validated.healthStatus || 'HEALTHY',
-
-        weight: validated.weight,
-        height: validated.height,
-        color: validated.color,
-        distinctMarks: validated.distinctMarks,
-
-        notes: validated.notes,
-        location: validated.location,
-
-        acquisitionDate: validated.acquisitionDate
-          ? new Date(validated.acquisitionDate)
-          : undefined,
-
-        acquisitionPrice:
-          validated.acquisitionPrice,
-
+        ...validated,
+        // Convert date strings → Date objects for Prisma
+        dateOfBirth:     validated.dateOfBirth     ? new Date(validated.dateOfBirth)     : undefined,
+        acquisitionDate: validated.acquisitionDate ? new Date(validated.acquisitionDate) : undefined,
+        // Link to org
         organizationId: payload.organizationId,
       },
     })
 
-    return NextResponse.json(
-      {
-        message: 'Animal created successfully',
-        animal,
-      },
-      { status: 201 }
-    )
+    return NextResponse.json({ message: 'Animal created successfully', animal }, { status: 201 })
   } catch (error: any) {
-    console.error('[CREATE_ANIMAL_ERROR]', error)
+    console.error('[CREATE animal error]', error)
 
-    // Zod validation error
-    if (error.name === 'ZodError') {
+    if (error?.name === 'ZodError') {
       return NextResponse.json(
-        {
-          error: error.errors?.[0]?.message || 'Validation error',
-        },
+        { error: error.errors?.[0]?.message || 'Validation error' },
         { status: 400 }
       )
     }
 
-    // Prisma duplicate errors
-    if (error.code === 'P2002') {
-      return NextResponse.json(
-        {
-          error: 'Duplicate field value detected',
-        },
-        { status: 400 }
-      )
-    }
-
-    return NextResponse.json(
-      {
-        error: 'Internal server error',
-        details: error.message,
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
