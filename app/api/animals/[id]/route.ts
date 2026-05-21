@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDB } from '@/lib/db/client'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth/utils'
 import { UpdateAnimalSchema } from '@/lib/validations'
-import { ObjectId } from 'mongodb'
 
-// GET: Fetch a single animal
+/* -------------------------------------------------------
+   GET SINGLE ANIMAL
+------------------------------------------------------- */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -20,37 +21,31 @@ export async function GET(
     }
 
     const payload = verifyToken(token)
-
     if (!payload) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    const db = await getDB()
-    const animalsCollection = db.collection('animals')
-
-    const animal = await animalsCollection.findOne({
-      _id: new ObjectId(id),
-      userId: new ObjectId(payload.userId),
+    const animal = await prisma.animal.findFirst({
+      where: {
+        id,
+        organizationId: payload.organizationId,
+      },
     })
 
     if (!animal) {
-      return NextResponse.json(
-        { error: 'Animal not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Animal not found' }, { status: 404 })
     }
 
     return NextResponse.json({ animal })
-  } catch (error: any) {
-    console.error('[v0] Get animal error:', error)
-
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+  } catch (error) {
+    console.error('[GET animal error]', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
+/* -------------------------------------------------------
+   UPDATE ANIMAL
+------------------------------------------------------- */
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -62,79 +57,55 @@ export async function PUT(
     const token = authHeader?.replace('Bearer ', '')
 
     if (!token) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const payload = verifyToken(token)
-
     if (!payload) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
     const body = await req.json()
-
     const validated = UpdateAnimalSchema.parse(body)
 
-    const db = await getDB()
+    // Verify the animal belongs to this org before updating
+    const existing = await prisma.animal.findFirst({
+      where: { id, organizationId: payload.organizationId },
+    })
 
-    const animalsCollection = db.collection('animals')
-
-    const dateOfBirth = validated.dateOfBirth
-      ? new Date(validated.dateOfBirth)
-      : undefined
-
-    const result = await animalsCollection.findOneAndUpdate(
-      {
-        _id: new ObjectId(id),
-        userId: new ObjectId(payload.userId),
-      },
-      {
-        $set: {
-          ...validated,
-          dateOfBirth,
-          updatedAt: new Date(),
-        },
-      },
-      {
-        returnDocument: 'after',
-      }
-    )
-
-    if (!result) {
-      return NextResponse.json(
-        { error: 'Animal not found' },
-        { status: 404 }
-      )
+    if (!existing) {
+      return NextResponse.json({ error: 'Animal not found' }, { status: 404 })
     }
 
-    return NextResponse.json({
-      message: 'Animal updated successfully',
-      animal: result,
-    })
-  } catch (error: any) {
-    console.error('[v0] Update animal error:', error)
+    const updateData: any = { ...validated, updatedAt: new Date() }
 
-    if (error.name === 'ZodError') {
+    if (validated.dateOfBirth) {
+      updateData.dateOfBirth = new Date(validated.dateOfBirth)
+    }
+
+    const animal = await prisma.animal.update({
+      where: { id },
+      data: updateData,
+    })
+
+    return NextResponse.json({ message: 'Animal updated successfully', animal })
+  } catch (error: any) {
+    console.error('[UPDATE animal error]', error)
+
+    if (error?.name === 'ZodError') {
       return NextResponse.json(
-        { error: error.errors[0].message },
+        { error: error.errors?.[0]?.message || 'Validation error' },
         { status: 400 }
       )
     }
 
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// DELETE: Delete an animal
+/* -------------------------------------------------------
+   DELETE ANIMAL
+------------------------------------------------------- */
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -154,21 +125,20 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    const db = await getDB()
-    const animalsCollection = db.collection('animals')
-
-    const result = await animalsCollection.deleteOne({
-      _id: new ObjectId(id),
-      userId: new ObjectId(payload.userId),
+    // Verify ownership before deleting
+    const existing = await prisma.animal.findFirst({
+      where: { id, organizationId: payload.organizationId },
     })
 
-    if (result.deletedCount === 0) {
+    if (!existing) {
       return NextResponse.json({ error: 'Animal not found' }, { status: 404 })
     }
 
+    await prisma.animal.delete({ where: { id } })
+
     return NextResponse.json({ message: 'Animal deleted successfully' })
-  } catch (error: any) {
-    console.error('Delete animal error:', error)
+  } catch (error) {
+    console.error('[DELETE animal error]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDB } from '@/lib/db/client'
+import { prisma } from '@/lib/prisma'
 import { verifyToken, generateShareCode } from '@/lib/auth/utils'
-import { ObjectId } from 'mongodb'
 
-// POST: Create a share link for an animal
+// POST: Create or refresh a share link for an animal
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -26,66 +25,40 @@ export async function POST(
     const body = await req.json()
     const { isPublic = false } = body
 
-    const db = await getDB()
-    const animalsCollection = db.collection('animals')
-    const sharesCollection = db.collection('animal_shares')
-
-    // Verify animal belongs to user
-    const animal = await animalsCollection.findOne({
-      _id: new ObjectId(id),
-      userId: new ObjectId(payload.userId),
+    // Verify animal belongs to the user's organization
+    // BUG FIX: was using userId — AnimalShare schema uses organizationId, not userId
+    const animal = await prisma.animal.findFirst({
+      where: {
+        id,
+        organizationId: payload.organizationId,
+      },
     })
 
     if (!animal) {
       return NextResponse.json({ error: 'Animal not found' }, { status: 404 })
     }
 
-    // Check if share already exists
-    let share = await sharesCollection.findOne({
-      animalId: new ObjectId(id),
-    })
-
     const shareCode = generateShareCode()
 
-    if (share) {
-      // Update existing share
-      const result = await sharesCollection.findOneAndUpdate(
-        { _id: share._id },
-        {
-          $set: {
-            isPublic,
-            shareCode,
-            updatedAt: new Date(),
-          },
-        },
-        { returnDocument: 'after' }
-      )
-      return NextResponse.json({ share: result.value })
-    } else {
-      // Create new share
-      const result = await sharesCollection.insertOne({
-        animalId: new ObjectId(id),
-        userId: new ObjectId(payload.userId),
+    // Upsert: update existing share or create a new one
+    const share = await prisma.animalShare.upsert({
+      where: { animalId: id } as any, // animalId is unique per animal
+      update: {
+        isPublic,
+        shareCode,
+        updatedAt: new Date(),
+      },
+      create: {
+        animalId: id,
+        organizationId: payload.organizationId,
         shareCode,
         isPublic,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
+      },
+    })
 
-      return NextResponse.json(
-        {
-          share: {
-            _id: result.insertedId,
-            animalId: id,
-            shareCode,
-            isPublic,
-          },
-        },
-        { status: 201 }
-      )
-    }
+    return NextResponse.json({ share }, { status: 200 })
   } catch (error: any) {
-    console.error('[v0] Share creation error:', error)
+    console.error('[Share creation error]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -110,20 +83,22 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    const db = await getDB()
-    const sharesCollection = db.collection('animal_shares')
-
-    const share = await sharesCollection.findOne({
-      animalId: new ObjectId(id),
+    // Verify the animal belongs to this org before exposing the share
+    const animal = await prisma.animal.findFirst({
+      where: { id, organizationId: payload.organizationId },
     })
 
-    if (!share) {
-      return NextResponse.json({ share: null })
+    if (!animal) {
+      return NextResponse.json({ error: 'Animal not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ share })
+    const share = await prisma.animalShare.findFirst({
+      where: { animalId: id },
+    })
+
+    return NextResponse.json({ share: share ?? null })
   } catch (error: any) {
-    console.error('[v0] Get share error:', error)
+    console.error('[Get share error]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

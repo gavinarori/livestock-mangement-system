@@ -13,22 +13,51 @@ export const LoginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 })
 
+// Helper: treat empty string / null / undefined all as undefined so optional
+// fields are stripped cleanly before hitting Prisma.
+const optionalString = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => (v === null || v === '' ? undefined : v))
+
+const optionalPositiveNumber = z
+  .union([z.number().positive(), z.null()])
+  .optional()
+  .transform((v) => (v === null ? undefined : v))
+
+const optionalNumber = z
+  .union([z.number(), z.null()])
+  .optional()
+  .transform((v) => (v === null ? undefined : v))
+
+// dateOfBirth / acquisitionDate come as ISO strings from the form
+const optionalDateString = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => (v === null || v === '' ? undefined : v))
+
 export const CreateAnimalSchema = z.object({
   name: z.string().min(1, 'Animal name is required'),
   type: z.enum(['CATTLE', 'SHEEP', 'GOAT', 'PIG', 'POULTRY', 'HORSE', 'FISH', 'AQUATIC', 'OTHER']),
-  breed: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
-  weight: z.number().positive().optional(),
-  height: z.number().positive().optional(),
-  color: z.string().optional(),
-  distinctMarks: z.string().optional(),
-  identificationId: z.string().optional(),
-  notes: z.string().optional(),
-  location: z.string().optional(),
-  healthStatus: z.enum(['HEALTHY', 'SICK', 'INJURED', 'RECOVERING', 'DECEASED']).optional(),
-  acquisitionDate: z.string().optional(),
-  acquisitionPrice: z.number().optional(),
+  breed: optionalString,
+  dateOfBirth: optionalDateString,
+  gender: z
+    .union([z.enum(['MALE', 'FEMALE', 'OTHER']), z.null()])
+    .optional()
+    .transform((v) => (v === null ? undefined : v)),
+  weight: optionalPositiveNumber,
+  height: optionalPositiveNumber,
+  color: optionalString,
+  distinctMarks: optionalString,
+  identificationId: optionalString,
+  notes: optionalString,
+  location: optionalString,
+  healthStatus: z
+    .union([z.enum(['HEALTHY', 'SICK', 'INJURED', 'RECOVERING', 'DECEASED']), z.null()])
+    .optional()
+    .transform((v) => (v === null ? undefined : v)),
+  acquisitionDate: optionalDateString,
+  acquisitionPrice: optionalNumber,
 })
 
 export const UpdateAnimalSchema = CreateAnimalSchema.partial()
@@ -37,25 +66,34 @@ export const HealthRecordSchema = z.object({
   recordType: z.enum(['vaccination', 'treatment', 'checkup', 'diagnosis']),
   description: z.string().min(1, 'Description is required'),
   date: z.string(),
-  vaccineName: z.string().optional(),
-  diagnosis: z.string().optional(),
-  diseaseCategory: z.enum(['INFECTIOUS', 'GENETIC', 'NUTRITIONAL', 'ENVIRONMENTAL', 'PARASITIC', 'OTHER']).optional(),
-  severity: z.enum(['mild', 'moderate', 'severe']).optional(),
-  treatment: z.string().optional(),
-  temperature: z.number().optional(),
-  weight: z.number().optional(),
-  notes: z.string().optional(),
+  vaccineName: optionalString,
+  diagnosis: optionalString,
+  diseaseCategory: z
+    .union([
+      z.enum(['INFECTIOUS', 'GENETIC', 'NUTRITIONAL', 'ENVIRONMENTAL', 'PARASITIC', 'OTHER']),
+      z.null(),
+    ])
+    .optional()
+    .transform((v) => (v === null ? undefined : v)),
+  severity: z
+    .union([z.enum(['mild', 'moderate', 'severe']), z.null()])
+    .optional()
+    .transform((v) => (v === null ? undefined : v)),
+  treatment: optionalString,
+  temperature: optionalNumber,
+  weight: optionalPositiveNumber,
+  notes: optionalString,
 })
 
 export const VeterinaryNoteSchema = z.object({
   veterinarian: z.string().min(1, 'Veterinarian name is required'),
   date: z.string(),
   examination: z.string().min(1, 'Examination details required'),
-  diagnosis: z.string().optional(),
+  diagnosis: optionalString,
   recommendations: z.string().min(1, 'Recommendations required'),
-  prescriptions: z.string().optional(),
-  followUpDate: z.string().optional(),
-  notes: z.string().optional(),
+  prescriptions: optionalString,
+  followUpDate: optionalDateString,
+  notes: optionalString,
 })
 
 export type SignupInput = z.infer<typeof SignupSchema>

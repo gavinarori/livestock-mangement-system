@@ -26,6 +26,15 @@ import {
   HeartPulse,
 } from 'lucide-react'
 
+import { useTheme } from "next-themes"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
 const NAV_ITEMS = [
   // ── Main Overview ─────────────────────────
   {
@@ -106,6 +115,7 @@ const NAV_ITEMS = [
 ]
 
 export function AppSidebar({ children }: { children: React.ReactNode }) {
+  const { setTheme } = useTheme()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -221,14 +231,26 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
 
       {/* Bottom tools */}
       <div className={`px-2 py-4 border-t border-sidebar-border space-y-1`}>
-        <button
-          onClick={() => setDark(d => !d)}
-          aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200 ${collapsed ? 'justify-center' : ''}`}
-        >
-          {dark ? <Sun className="w-4 h-4 flex-shrink-0" aria-hidden="true" /> : <Moon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />}
-          {!collapsed && <span>{dark ? 'Light Mode' : 'Dark Mode'}</span>}
-        </button>
+        <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon">
+          <Sun className="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+          <Moon className="absolute h-[1.2rem] w-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+          <span className="sr-only">Toggle theme</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setTheme("light")}>
+          Light
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
+          Dark
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
+          System
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
         <Link
           href="/login"
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-all duration-200 ${collapsed ? 'justify-center' : ''}`}

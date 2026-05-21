@@ -572,7 +572,7 @@ model VeterinaryNote {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId   String       @db.ObjectId
   veterinarianId   String?  @db.ObjectId
-  veterinarianName String
+  veterinarianName String?
   date             DateTime
   examination      String
   diagnosis        String?

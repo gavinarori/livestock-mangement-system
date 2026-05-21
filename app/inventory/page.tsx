@@ -9,7 +9,7 @@ import {
   MapPin, Phone, ShieldCheck, Activity
 } from 'lucide-react'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+
 type UserRole = 'ADMIN' | 'MANAGER' | 'VETERINARIAN' | 'WORKER' | 'VIEWER'
 interface AuthUser { id: string; name: string; email: string; role: UserRole; organizationId: string }
 
@@ -55,11 +55,11 @@ interface EquipmentItem {
   createdAt: string
 }
 
-// ─── Permissions ──────────────────────────────────────────────────────────────
+
 const WRITE_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'WORKER']
 const canWrite = (role?: UserRole) => !!role && WRITE_ROLES.includes(role)
 
-// ─── API helper ───────────────────────────────────────────────────────────────
+
 async function apiFetch(url: string, options?: RequestInit) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
   const res = await fetch(url, {
@@ -71,14 +71,14 @@ async function apiFetch(url: string, options?: RequestInit) {
   return data
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 const fmtKsh = (v: number) => `KSh ${v.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const daysUntil = (d?: string) => !d ? null : Math.round((new Date(d).getTime() - Date.now()) / 86400000)
 const isExpired = (d?: string) => !!d && new Date(d) < new Date()
 const isExpiringSoon = (d?: string) => { if (!d) return false; const diff = (new Date(d).getTime() - Date.now()) / 86400000; return diff >= 0 && diff < 30 }
 const isLow = (qty: number, min: number) => qty <= min
 
-// ─── Shared atoms ─────────────────────────────────────────────────────────────
+
 const StockBar = ({ qty, min, max }: { qty: number; min: number; max: number }) => {
   const pct = Math.min((qty / Math.max(max, 1)) * 100, 100)
   const color = qty <= min ? 'bg-destructive' : qty <= min * 1.5 ? 'bg-amber-500' : 'bg-emerald-500'

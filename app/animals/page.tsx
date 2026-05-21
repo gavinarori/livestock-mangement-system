@@ -282,10 +282,10 @@ export default function AnimalsPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filtered.map((animal: any) => (
-                    <tr key={animal._id} className={`group hover:bg-muted/30 transition-colors ${selectedIds.has(animal._id) ? 'bg-primary/5' : ''}`}>
+                    <tr key={animal.id} className={`group hover:bg-muted/30 transition-colors ${selectedIds.has(animal.id) ? 'bg-primary/5' : ''}`}>
                       <td className="px-4 py-3">
-                        <button onClick={() => toggleSelect(animal._id)} className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedIds.has(animal._id) ? 'bg-primary border-primary' : 'border-border hover:border-primary/60'}`}>
-                          {selectedIds.has(animal._id) && <Check className="w-3 h-3 text-primary-foreground" />}
+                        <button onClick={() => toggleSelect(animal.id)} className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedIds.has(animal.id) ? 'bg-primary border-primary' : 'border-border hover:border-primary/60'}`}>
+                          {selectedIds.has(animal.id) && <Check className="w-3 h-3 text-primary-foreground" />}
                         </button>
                       </td>
                       <td className="px-4 py-3 font-medium">
@@ -310,13 +310,13 @@ export default function AnimalsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Link href={`/animals/${animal._id}`}>
+                          <Link href={`/animals/${animal.id}`}>
                             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg"><Eye className="w-3.5 h-3.5" /></Button>
                           </Link>
-                          <Link href={`/animals/${animal._id}/edit`}>
+                          <Link href={`/animals/${animal.id}/edit`}>
                             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg"><Pencil className="w-3.5 h-3.5" /></Button>
                           </Link>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDelete(animal._id)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDelete(animal.id)}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
@@ -333,9 +333,9 @@ export default function AnimalsPage() {
         {viewMode === 'list' && filtered.length > 0 && (
           <div className="animate-fade-up delay-150 flex flex-col gap-2" style={{ animationFillMode: 'forwards' }}>
             {filtered.map((animal: any) => (
-              <div key={animal._id} className={`group card-hover flex items-center gap-4 p-4 rounded-2xl border bg-card cursor-pointer ${selectedIds.has(animal._id) ? 'border-primary/40 bg-primary/5' : 'border-border'}`}>
-                <button onClick={() => toggleSelect(animal._id)} className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${selectedIds.has(animal._id) ? 'bg-primary border-primary' : 'border-border'}`}>
-                  {selectedIds.has(animal._id) && <Check className="w-3 h-3 text-primary-foreground" />}
+              <div key={animal.id} className={`group card-hover flex items-center gap-4 p-4 rounded-2xl border bg-card cursor-pointer ${selectedIds.has(animal.id) ? 'border-primary/40 bg-primary/5' : 'border-border'}`}>
+                <button onClick={() => toggleSelect(animal.id)} className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${selectedIds.has(animal.id) ? 'bg-primary border-primary' : 'border-border'}`}>
+                  {selectedIds.has(animal.id) && <Check className="w-3 h-3 text-primary-foreground" />}
                 </button>
                 <div className="text-2xl flex-shrink-0">{getTypeIcon(animal.type)}</div>
                 <div className="flex-1 min-w-0">
@@ -349,9 +349,9 @@ export default function AnimalsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Link href={`/animals/${animal._id}`}><Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl"><Eye className="w-4 h-4" /></Button></Link>
-                  <Link href={`/animals/${animal._id}/edit`}><Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl"><Pencil className="w-4 h-4" /></Button></Link>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-destructive hover:text-destructive" onClick={() => handleDelete(animal._id)}><Trash2 className="w-4 h-4" /></Button>
+                  <Link href={`/animals/${animal.id}`}><Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl"><Eye className="w-4 h-4" /></Button></Link>
+                  <Link href={`/animals/${animal.id}/edit`}><Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl"><Pencil className="w-4 h-4" /></Button></Link>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-destructive hover:text-destructive" onClick={() => handleDelete(animal.id)}><Trash2 className="w-4 h-4" /></Button>
                 </div>
               </div>
             ))}
@@ -362,10 +362,10 @@ export default function AnimalsPage() {
         {viewMode === 'grid' && filtered.length > 0 && (
           <div className="animate-fade-up delay-150 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" style={{ animationFillMode: 'forwards' }}>
             {filtered.map((animal: any) => (
-              <div key={animal._id} className={`group card-hover relative rounded-2xl border bg-card overflow-hidden ${selectedIds.has(animal._id) ? 'border-primary/60 ring-1 ring-primary/30' : 'border-border'}`}>
+              <div key={animal.id} className={`group card-hover relative rounded-2xl border bg-card overflow-hidden ${selectedIds.has(animal.id) ? 'border-primary/60 ring-1 ring-primary/30' : 'border-border'}`}>
                 {/* Selection */}
-                <button onClick={() => toggleSelect(animal._id)} className={`absolute top-3 left-3 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedIds.has(animal._id) ? 'bg-primary border-primary opacity-100' : 'border-white/70 opacity-0 group-hover:opacity-100 bg-black/20'}`}>
-                  {selectedIds.has(animal._id) && <Check className="w-3 h-3 text-white" />}
+                <button onClick={() => toggleSelect(animal.id)} className={`absolute top-3 left-3 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedIds.has(animal.id) ? 'bg-primary border-primary opacity-100' : 'border-white/70 opacity-0 group-hover:opacity-100 bg-black/20'}`}>
+                  {selectedIds.has(animal.id) && <Check className="w-3 h-3 text-white" />}
                 </button>
                 {/* Header band */}
                 <div className="h-20 bg-gradient-to-br from-primary/10 via-secondary to-accent/20 flex items-center justify-center text-4xl">
@@ -387,9 +387,9 @@ export default function AnimalsPage() {
                     {animal.dob && <div className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(animal.dob).toLocaleDateString()}</div>}
                   </div>
                   <div className="mt-3 pt-3 border-t border-border flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Link href={`/animals/${animal._id}`} className="flex-1"><Button variant="outline" size="sm" className="w-full h-7 text-xs rounded-lg gap-1"><Eye className="w-3 h-3" />View</Button></Link>
-                    <Link href={`/animals/${animal._id}/edit`}><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg"><Pencil className="w-3 h-3" /></Button></Link>
-                    <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive hover:border-destructive/40" onClick={() => handleDelete(animal._id)}><Trash2 className="w-3 h-3" /></Button>
+                    <Link href={`/animals/${animal.id}`} className="flex-1"><Button variant="outline" size="sm" className="w-full h-7 text-xs rounded-lg gap-1"><Eye className="w-3 h-3" />View</Button></Link>
+                    <Link href={`/animals/${animal.id}/edit`}><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg"><Pencil className="w-3 h-3" /></Button></Link>
+                    <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive hover:border-destructive/40" onClick={() => handleDelete(animal.id)}><Trash2 className="w-3 h-3" /></Button>
                   </div>
                 </div>
               </div>
