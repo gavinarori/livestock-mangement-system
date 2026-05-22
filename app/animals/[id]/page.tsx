@@ -17,6 +17,7 @@ import {
   Palette,
   FileText,
   Info,
+  ExternalLink,
 } from 'lucide-react'
 
 /* ─────────────────────────────────────────────
@@ -150,28 +151,7 @@ export default function AnimalDetailPage() {
     }
   }
 
-  const handleShare = async () => {
-    try {
-      setShareLoading(true)
 
-      const token = localStorage.getItem('token')
-      const res = await fetch(`/api/animals/${params.id}/share`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ isPublic: true }),
-      })
-
-      if (!res.ok) throw new Error('Failed to create share link')
-
-      const data = await res.json()
-      setShare(data.share)
-    } finally {
-      setShareLoading(false)
-    }
-  }
 
   const copyShareLink = () => {
     if (!share?.shareCode) return
@@ -245,22 +225,20 @@ export default function AnimalDetailPage() {
           </Link>
 
           <div className="flex gap-2">
-            {share?.shareCode ? (
-              <Button variant="outline" size="sm" onClick={copyShareLink}>
-                {copySuccess ? <Check /> : <Copy />}
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" onClick={handleShare}>
-                <Share2 className="w-4 h-4" />
-              </Button>
-            )}
 
-            <Link href={`/animals/${animal.id ?? animal._id}/edit`}>
-              <Button size="sm">
-                <Edit className="w-4 h-4" />
-              </Button>
-            </Link>
-          </div>
+  <Link href={`/animals/${animal.id ?? animal._id}/shares`}>
+    <Button variant="outline" size="sm">
+      <ExternalLink className="w-4 h-4 mr-2" />
+      Shares
+    </Button>
+  </Link>
+
+  <Link href={`/animals/${animal.id ?? animal._id}/edit`}>
+    <Button size="sm">
+      <Edit className="w-4 h-4" />
+    </Button>
+  </Link>
+</div>
         </div>
       </div>
 
