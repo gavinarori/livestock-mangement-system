@@ -172,6 +172,21 @@ enum EquipmentEventType {
   RETIREMENT
 }
 
+
+enum ShareType {
+  PUBLIC
+  PRIVATE
+  ROLE_BASED
+}
+
+enum ShareRole {
+  VET
+  INSPECTOR
+  BUYER
+  PARTNER
+  ADMIN
+}
+
 // ─── Organization ─────────────────────────────────────────────────────────────
 
 model Organization {
@@ -204,6 +219,8 @@ model Organization {
   equipmentItems      EquipmentItem[]
   stockTransactions   StockTransaction[]
   equipmentEvents     EquipmentEvent[]
+
+
 }
 
 // ─── User ─────────────────────────────────────────────────────────────────────
@@ -242,6 +259,8 @@ model User {
   updatedEquipmentItems EquipmentItem[]    @relation("EquipmentUpdatedBy")
   stockTransactions     StockTransaction[] @relation("StockTransactionBy")
   equipmentEvents       EquipmentEvent[]   @relation("EquipmentEventBy")
+
+  createdShares       AnimalShare[]      @relation("ShareCreator")
 
   @@index([organizationId])
 }
@@ -793,18 +812,71 @@ model HeatCycle {
   @@index([status])
 }
 
-model AnimalShare {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  animal         Animal       @relation(fields: [animalId], references: [id], onDelete: Cascade)
-  animalId       String       @db.ObjectId
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId String       @db.ObjectId
-  shareCode      String   @unique
-  isPublic       Boolean  @default(false)
-  expiresAt      DateTime?
-  viewCount      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
 
-  @@index([organizationId])
+
+model AnimalShare {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  animalId         String    @db.ObjectId
+  organizationId   String    @db.ObjectId
+  createdBy        String    @db.ObjectId
+
+  shareType        ShareType @default(PUBLIC)
+  token            String    @unique
+  passwordHash     String?
+
+  // Role-based access
+  shareRole        ShareRole?
+  allowedEmails    String[]  @default([])
+
+  // Permissions matrix (which data sections are visible)
+  canViewHealth        Boolean @default(true)
+  canViewBreeding      Boolean @default(false)
+  canViewVeterinary    Boolean @default(false)
+  canViewFinancials    Boolean @default(false)
+  canViewLineage       Boolean @default(false)
+  canViewCertificates  Boolean @default(false)
+
+  // Lifecycle
+  expiresAt        DateTime
+  isRevoked        Boolean   @default(false)
+  revokedAt        DateTime?
+  revokedBy        String?   @db.ObjectId
+
+  // Stats
+  viewCount        Int       @default(0)
+  lastAccessedAt   DateTime?
+
+
+
+  // Notes
+  label            String?
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  animal           Animal        @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  organization     Organization  @relation(fields: [organizationId], references: [id])
+  creator          User          @relation("ShareCreator", fields: [createdBy], references: [id])
+  accessLogs       ShareAccessLog[]
+
+  @@map("animal_shares")
+}
+
+model ShareAccessLog {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  shareId     String    @db.ObjectId
+  userId      String?   @db.ObjectId
+
+  ip          String?
+  userAgent   String?
+  country     String?
+  city        String?
+
+  accessedAt  DateTime  @default(now())
+  duration    Int?      // seconds spent on page
+
+  share       AnimalShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  @@map("share_access_logs")
 }
