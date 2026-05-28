@@ -5,9 +5,9 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Plus, Copy, Check, Shield, Eye, Clock, Globe,
-  Lock, UserCheck, Trash2, RefreshCw, AlertTriangle, ChevronRight,
-  Activity, FileDown, Users, Key, Calendar, BarChart2, X,
-  Filter, ExternalLink,
+  Lock, UserCheck, Trash2, AlertTriangle, ChevronRight,
+  Activity, Users, Key, BarChart2, X,
+  ExternalLink, RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -53,7 +53,10 @@ function daysUntil(dateStr: string) {
 }
 
 function formatDate(dateStr: string) {
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(dateStr))
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).format(new Date(dateStr))
 }
 
 function shareUrl(token: string) {
@@ -188,7 +191,6 @@ function CreateShareModal({ animalId, onCreated, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-card border border-border rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div>
             <h2 className="text-base font-semibold text-foreground">Create Share Link</h2>
@@ -362,6 +364,7 @@ function CreateShareModal({ animalId, onCreated, onClose }: {
 function ShareCard({ share, onRevoke }: { share: AnimalShare; onRevoke: (token: string) => void }) {
   const [copied, setCopied] = useState(false)
   const [revoking, setRevoking] = useState(false)
+  const [revokeError, setRevokeError] = useState('')
 
   const days = daysUntil(share.expiresAt)
   const isExpired = days <= 0
@@ -376,15 +379,22 @@ function ShareCard({ share, onRevoke }: { share: AnimalShare; onRevoke: (token: 
   }
 
   const revoke = async () => {
-    if (!confirm('Revoke this share link? This cannot be undone.')) return
+    if (!confirm('Revoke this share link? Anyone with this link will immediately lose access. This cannot be undone.')) return
     setRevoking(true)
+    setRevokeError('')
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`/api/shares/${share.token}/revoke`, {
+      const authToken = localStorage.getItem('token')
+      const res = await fetch(`/api/animals/shares/${share.token}/revoke`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       })
-      if (res.ok) onRevoke(share.token)
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to revoke share')
+      }
+      onRevoke(share.token)
+    } catch (err: any) {
+      setRevokeError(err.message)
     } finally {
       setRevoking(false)
     }
@@ -420,30 +430,31 @@ function ShareCard({ share, onRevoke }: { share: AnimalShare; onRevoke: (token: 
 
         {isActive && (
           <div className="flex gap-1 flex-shrink-0">
-            <button
-              onClick={copy}
-              className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-              title="Copy link"
-            >
+            <button onClick={copy} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Copy link">
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
             </button>
             <a href={shareUrl(share.token)} target="_blank" rel="noreferrer"
-              className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-              title="Open link"
-            >
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Open link">
               <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
             </a>
             <button
               onClick={revoke}
               disabled={revoking}
-              className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors"
-              title="Revoke"
+              className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors disabled:opacity-50"
+              title="Revoke link"
             >
-              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+              {revoking ? <RefreshCw className="w-3.5 h-3.5 text-destructive animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-destructive" />}
             </button>
           </div>
         )}
       </div>
+
+      {revokeError && (
+        <div className="flex items-center gap-2 p-2 mb-2 bg-destructive/10 border border-destructive/20 rounded-lg text-xs text-destructive">
+          <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+          {revokeError}
+        </div>
+      )}
 
       {share.label && (
         <p className="text-sm font-medium text-foreground mb-2">{share.label}</p>
@@ -462,19 +473,18 @@ function ShareCard({ share, onRevoke }: { share: AnimalShare; onRevoke: (token: 
       )}
 
       {/* Stats row */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
         <span className="flex items-center gap-1">
           <Eye className="w-3 h-3" /> {share.viewCount} views
         </span>
         <span className="flex items-center gap-1">
           <Clock className="w-3 h-3" />
           {share.isRevoked ? `Revoked ${formatDate(share.revokedAt!)}` :
-            isExpired ? 'Expired' :
-              `${days}d left`}
+            isExpired ? 'Expired' : `${days}d left`}
         </span>
         {share.lastAccessedAt && (
           <span className="flex items-center gap-1">
-            <Activity className="w-3 h-3" /> {formatDate(share.lastAccessedAt)}
+            <Activity className="w-3 h-3" /> Last: {formatDate(share.lastAccessedAt)}
           </span>
         )}
         <span className="flex items-center gap-1 ml-auto">
@@ -505,38 +515,50 @@ function PermPill({ label }: { label: string }) {
 
 // ─── Audit Log Tab ────────────────────────────────────────────────────────────
 
-function AuditLogTab({ animalId, shares }: { animalId: string; shares: AnimalShare[] }) {
+function AuditLogTab({ shares }: { shares: AnimalShare[] }) {
   const [logs, setLogs] = useState<Array<AccessLog & { shareLabel?: string; shareType?: string }>>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      const token = localStorage.getItem('token')
-      const allLogs: any[] = []
+  const loadLogs = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    const authToken = localStorage.getItem('token')
+    const allLogs: any[] = []
 
-      for (const share of shares.slice(0, 10)) {
-        try {
-          const res = await fetch(`/api/shares/${share.token}/logs?limit=20`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          if (res.ok) {
-            const { logs: shareLogs } = await res.json()
-            allLogs.push(...shareLogs.map((l: AccessLog) => ({
-              ...l,
-              shareLabel: share.label || `${TYPE_META[share.shareType].label} Link`,
-              shareType: share.shareType,
-            })))
-          }
-        } catch { /* continue */ }
+    // Fetch logs for each share (max 10 shares, max 20 logs each)
+    const fetchPromises = shares.slice(0, 10).map(async (share) => {
+      try {
+        const res = await fetch(`/api/animals/shares/${share.token}/logs?limit=20`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        })
+        if (res.ok) {
+          const { logs: shareLogs } = await res.json()
+          return shareLogs.map((l: AccessLog) => ({
+            ...l,
+            shareLabel: share.label || `${TYPE_META[share.shareType].label} Link`,
+            shareType: share.shareType,
+          }))
+        }
+        return []
+      } catch {
+        return []
       }
+    })
 
+    try {
+      const results = await Promise.all(fetchPromises)
+      results.forEach(r => allLogs.push(...r))
       allLogs.sort((a, b) => new Date(b.accessedAt).getTime() - new Date(a.accessedAt).getTime())
       setLogs(allLogs.slice(0, 100))
+    } catch {
+      setError('Failed to load audit logs')
+    } finally {
       setLoading(false)
     }
-    load()
   }, [shares])
+
+  useEffect(() => { loadLogs() }, [loadLogs])
 
   if (loading) {
     return (
@@ -546,17 +568,36 @@ function AuditLogTab({ animalId, shares }: { animalId: string; shares: AnimalSha
     )
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <AlertTriangle className="w-8 h-8 text-destructive mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">{error}</p>
+        <Button variant="ghost" size="sm" className="mt-2" onClick={loadLogs}>
+          <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Retry
+        </Button>
+      </div>
+    )
+  }
+
   if (!logs.length) {
     return (
       <div className="text-center py-12">
         <Activity className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
         <p className="text-sm text-muted-foreground">No access activity yet</p>
+        <p className="text-xs text-muted-foreground mt-1">Activity will appear here once someone accesses a share link</p>
       </div>
     )
   }
 
   return (
     <div className="space-y-2">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-muted-foreground">{logs.length} access events across all shares</p>
+        <Button variant="ghost" size="sm" onClick={loadLogs}>
+          <RefreshCw className="w-3 h-3 mr-1" /> Refresh
+        </Button>
+      </div>
       {logs.map(log => (
         <div key={log.id} className="flex items-start gap-3 p-3 bg-card border border-border rounded-xl">
           <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
@@ -565,12 +606,21 @@ function AuditLogTab({ animalId, shares }: { animalId: string; shares: AnimalSha
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium text-foreground">{log.shareLabel}</span>
-              <span className="text-xs text-muted-foreground">{formatDate(log.accessedAt)}</span>
+              {log.shareType && (
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${TYPE_META[log.shareType]?.cls}`}>
+                  {TYPE_META[log.shareType]?.label}
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground ml-auto">{formatDate(log.accessedAt)}</span>
             </div>
             <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
               <span>{log.ip || 'Unknown IP'}</span>
-              {log.duration && <span>{log.duration}s session</span>}
-              {log.userAgent && <span className="truncate max-w-[200px]">{log.userAgent.split(' ')[0]}</span>}
+              {log.duration && <span className="text-emerald-600 dark:text-emerald-400">{log.duration}s session</span>}
+              {log.userAgent && (
+                <span className="truncate max-w-[200px]" title={log.userAgent}>
+                  {log.userAgent.split(' ')[0]}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -615,9 +665,12 @@ export default function AnimalSharesPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const handleRevoke = (token: string) => {
-    setShares(prev => prev.map(s => s.token === token ? { ...s, isRevoked: true, revokedAt: new Date().toISOString() } : s))
-  }
+  // Optimistically mark as revoked; full re-fetch keeps counts accurate
+  const handleRevoke = useCallback((token: string) => {
+    setShares(prev => prev.map(s =>
+      s.token === token ? { ...s, isRevoked: true, revokedAt: new Date().toISOString() } : s
+    ))
+  }, [])
 
   const activeShares = shares.filter(s => !s.isRevoked && daysUntil(s.expiresAt) > 0)
   const historyShares = shares.filter(s => s.isRevoked || daysUntil(s.expiresAt) <= 0)
@@ -736,7 +789,7 @@ export default function AnimalSharesPage() {
           </div>
         )}
 
-        {tab === 'audit' && <AuditLogTab animalId={animalId} shares={shares} />}
+        {tab === 'audit' && <AuditLogTab shares={shares} />}
       </div>
     </div>
   )
