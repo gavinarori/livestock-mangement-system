@@ -18,14 +18,40 @@ export async function GET(
     const share = await prisma.animalShare.findUnique({
       where: { token },
       include: {
-        animal: {
-          include: {
-            healthRecords: { orderBy: { date: 'desc' }, take: 20 },
-            veterinaryNotes: { orderBy: { date: 'desc' }, take: 10 },
-            breedingRecords: { orderBy: { createdAt: 'desc' }, take: 10 },
+  animal: {
+    include: {
+      healthRecords: {
+        orderBy: { date: 'desc' },
+        take: 20,
+      },
+
+      veterinaryNotes: {
+        orderBy: { date: 'desc' },
+        take: 10,
+      },
+
+      breedingsAsDam: {
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: {
+          dam: {
+            select: {
+              name: true,
+              breed: true,
+            },
+          },
+
+          sire: {
+            select: {
+              name: true,
+              breed: true,
+            },
           },
         },
       },
+    },
+  },
+},
     })
 
     if (!share) {
@@ -96,8 +122,20 @@ export async function GET(
     }
 
     if (share.canViewHealth) safeAnimal.healthRecords = animal.healthRecords
-    if (share.canViewVeterinary) safeAnimal.veterinaryNotes = animal.veterinaryNotes
-    if (share.canViewBreeding) safeAnimal.breedingRecords = animal.breedingRecords
+if (share.canViewVeterinary) {
+  safeAnimal.veterinaryNotes = animal.veterinaryNotes.map((note) => ({
+    id: note.id,
+    date: note.date,
+    notes: note.recommendations,
+    diagnosis: note.diagnosis,
+    prescription: note.prescriptions,
+    veterinarian: note.veterinarianName,
+    followUpDate: note.followUpDate,
+  }))
+}
+   if (share.canViewBreeding) {
+  safeAnimal.breedingRecords = animal.breedingsAsDam
+}
 
     const permissions = {
       canViewHealth: share.canViewHealth,
