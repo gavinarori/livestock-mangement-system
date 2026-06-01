@@ -187,6 +187,32 @@ enum ShareRole {
   ADMIN
 }
 
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  OVERDUE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskCategory {
+  FEEDING
+  CLEANING
+  MEDICATION
+  VACCINATION
+  INSPECTION
+  BREEDING
+  EQUIPMENT
+  OTHER
+}
+
 // ─── Organization ─────────────────────────────────────────────────────────────
 
 model Organization {
@@ -219,6 +245,8 @@ model Organization {
   equipmentItems      EquipmentItem[]
   stockTransactions   StockTransaction[]
   equipmentEvents     EquipmentEvent[]
+  tasks               Task[]
+
 
 
 }
@@ -259,6 +287,8 @@ model User {
   updatedEquipmentItems EquipmentItem[]    @relation("EquipmentUpdatedBy")
   stockTransactions     StockTransaction[] @relation("StockTransactionBy")
   equipmentEvents       EquipmentEvent[]   @relation("EquipmentEventBy")
+  assignedTasks  Task[]  @relation("TaskAssignedTo")
+  createdTasks   Task[]  @relation("TaskCreatedBy")
 
   createdShares       AnimalShare[]      @relation("ShareCreator")
 
@@ -308,6 +338,8 @@ model Animal {
   vaccinationSchedules VaccinationSchedule[]
   diseaseOutbreakLinks DiseaseOutbreakAnimal[]
   treatments           Treatment[]
+  tasks                Task[]
+
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -879,4 +911,44 @@ model ShareAccessLog {
   share       AnimalShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
 
   @@map("share_access_logs")
+}
+
+
+model Task {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String       @db.ObjectId
+
+  title          String
+  description    String?
+  category       TaskCategory @default(OTHER)
+  status         TaskStatus   @default(PENDING)
+  priority       TaskPriority @default(MEDIUM)
+
+  // Who the task is assigned to (a WORKER user)
+  assignedTo     User?    @relation("TaskAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedToId   String?  @db.ObjectId
+  assignedToName String?
+
+  // Optional animal link
+  animal         Animal?  @relation(fields: [animalId], references: [id], onDelete: SetNull)
+  animalId       String?  @db.ObjectId
+
+  dueDate        DateTime?
+  completedAt    DateTime?
+  notes          String?
+
+  // Who created (MANAGER or ADMIN)
+  createdBy      User?    @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdById    String?  @db.ObjectId
+  createdByName  String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([animalId])
 }
