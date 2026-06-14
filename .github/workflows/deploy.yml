@@ -205,7 +205,7 @@ jobs:
     if: failure()
     steps:
       - name: Post failure to Slack
-        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        
         uses: slackapi/slack-github-action@v1.27.0
         with:
           payload: |

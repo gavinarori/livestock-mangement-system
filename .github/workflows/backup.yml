@@ -70,7 +70,7 @@ jobs:
           retention-days: ${{ inputs.retention_days || 30 }}
 
       - name: Upload backup to S3 (if configured)
-        if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+       
         run: |
           aws s3 cp \
             "${{ steps.dump.outputs.backup-file }}" \
