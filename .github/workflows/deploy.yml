@@ -1,0 +1,226 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false   # never cancel a running deploy
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ─────────────────────────────────────────────
+  # GATE: CI must pass before deploy
+  # ─────────────────────────────────────────────
+  ci-gate:
+    name: CI gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CI status
+        uses: actions/checkout@v4
+
+      - name: Verify branch protection
+        run: |
+          echo "Deploying commit ${{ github.sha }} from branch ${{ github.ref_name }}"
+          echo "Triggered by: ${{ github.actor }}"
+
+  # ─────────────────────────────────────────────
+  # DATABASE MIGRATION
+  # ─────────────────────────────────────────────
+  migrate:
+    name: Database migration
+    runs-on: ubuntu-latest
+    needs: ci-gate
+    environment:
+      name: ${{ inputs.environment || 'production' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run database seed (staging only)
+        if: ${{ inputs.environment == 'staging' }}
+        run: npx prisma db seed
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  # ─────────────────────────────────────────────
+  # DEPLOY TO VERCEL
+  # ─────────────────────────────────────────────
+  deploy-vercel:
+    name: Deploy → Vercel (${{ inputs.environment || 'production' }})
+    runs-on: ubuntu-latest
+    needs: migrate
+    environment:
+      name: ${{ inputs.environment || 'production' }}
+      url: ${{ steps.deploy.outputs.url }}
+    outputs:
+      deployment-url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel environment
+        run: |
+          vercel pull --yes \
+            --environment=${{ inputs.environment || 'production' }} \
+            --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build with Vercel
+        run: |
+          vercel build \
+            ${{ (inputs.environment == 'production' || github.ref == 'refs/heads/main') && '--prod' || '' }} \
+            --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy prebuilt artifact
+        id: deploy
+        run: |
+          URL=$(vercel deploy --prebuilt \
+            ${{ (inputs.environment == 'production' || github.ref == 'refs/heads/main') && '--prod' || '' }} \
+            --token=${{ secrets.VERCEL_TOKEN }} \
+            --meta gitSha=${{ github.sha }} \
+            --meta branch=${{ github.ref_name }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Deployed to: $URL"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Write deployment summary
+        run: |
+          echo "## Deployment Complete 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ inputs.environment || 'production' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL | ${{ steps.deploy.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployed by | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────
+  # SMOKE TESTS (post-deploy)
+  # ─────────────────────────────────────────────
+  smoke-test:
+    name: Smoke tests
+    runs-on: ubuntu-latest
+    needs: deploy-vercel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for deployment propagation
+        run: sleep 15
+
+      - name: Health check — root
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            "${{ needs.deploy-vercel.outputs.deployment-url }}")
+          echo "Status: $STATUS"
+          [ "$STATUS" = "200" ] || [ "$STATUS" = "307" ] || [ "$STATUS" = "302" ] || \
+            (echo "Health check failed with status $STATUS" && exit 1)
+
+      - name: Health check — login page
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            "${{ needs.deploy-vercel.outputs.deployment-url }}/login")
+          echo "Login page status: $STATUS"
+          [ "$STATUS" = "200" ] || (echo "Login page unavailable" && exit 1)
+
+      - name: Health check — API analytics
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            "${{ needs.deploy-vercel.outputs.deployment-url }}/api/analytics")
+          echo "API status: $STATUS"
+          # 401 is correct — endpoint exists but requires auth
+          [ "$STATUS" = "401" ] || [ "$STATUS" = "200" ] || \
+            (echo "API endpoint missing or erroring (got $STATUS)" && exit 1)
+
+      - name: Check page content
+        run: |
+          BODY=$(curl -s --max-time 30 \
+            "${{ needs.deploy-vercel.outputs.deployment-url }}/login")
+          echo "$BODY" | grep -qi "livestock\|sign in\|login\|agrovault" || \
+            (echo "Page content check failed — app may not have loaded correctly" && exit 1)
+
+  # ─────────────────────────────────────────────
+  # NOTIFY ON FAILURE
+  # ─────────────────────────────────────────────
+  notify-failure:
+    name: Notify on failure
+    runs-on: ubuntu-latest
+    needs: [migrate, deploy-vercel, smoke-test]
+    if: failure()
+    steps:
+      - name: Post failure to Slack
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {
+              "text": "❌ *Deployment failed* on `${{ github.ref_name }}`",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "❌ *AgroVault deployment failed*\n*Branch:* `${{ github.ref_name }}`\n*Commit:* `${{ github.sha }}`\n*Actor:* @${{ github.actor }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View logs>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

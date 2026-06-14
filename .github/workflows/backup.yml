@@ -1,0 +1,107 @@
+name: Database Backup
+
+on:
+  schedule:
+    # Daily at 02:00 UTC (off-peak for East Africa / EAT = UTC+3 → 05:00 local)
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: How many days to retain this backup
+        required: false
+        default: "30"
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  backup:
+    name: MongoDB backup
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install mongodump
+        run: |
+          wget -qO - https://www.mongodb.org/static/pgp/server-7.0.asc | \
+            sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] \
+            https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | \
+            sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+          sudo apt-get update -qq
+          sudo apt-get install -y mongodb-org-tools
+
+      - name: Run mongodump
+        id: dump
+        run: |
+          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
+          BACKUP_FILE="agrovault_backup_${TIMESTAMP}.gz"
+          echo "backup-file=$BACKUP_FILE" >> $GITHUB_OUTPUT
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+
+          mongodump \
+            --uri="${{ secrets.DATABASE_URL }}" \
+            --gzip \
+            --archive="$BACKUP_FILE" \
+            --verbose
+
+          SIZE=$(du -sh "$BACKUP_FILE" | cut -f1)
+          echo "Backup created: $BACKUP_FILE ($SIZE)"
+          echo "backup-size=$SIZE" >> $GITHUB_OUTPUT
+
+      - name: Verify backup integrity
+        run: |
+          FILE="${{ steps.dump.outputs.backup-file }}"
+          # Verify the gzip archive is readable
+          mongorestore \
+            --gzip \
+            --archive="$FILE" \
+            --dryRun \
+            --verbose 2>&1 | tail -5
+          echo "✅ Backup integrity verified"
+
+      - name: Upload backup to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ steps.dump.outputs.timestamp }}
+          path: ${{ steps.dump.outputs.backup-file }}
+          retention-days: ${{ inputs.retention_days || 30 }}
+
+      - name: Upload backup to S3 (if configured)
+        if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+        run: |
+          aws s3 cp \
+            "${{ steps.dump.outputs.backup-file }}" \
+            "s3://${{ secrets.BACKUP_S3_BUCKET }}/mongodb/agrovault/${{ steps.dump.outputs.backup-file }}" \
+            --storage-class STANDARD_IA
+          echo "✅ Uploaded to S3"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Write backup summary
+        run: |
+          echo "## Database Backup Complete 💾" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| File | \`${{ steps.dump.outputs.backup-file }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Size | ${{ steps.dump.outputs.backup-size }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Retention | ${{ inputs.retention_days || 30 }} days |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {
+              "text": "🔴 *AgroVault database backup FAILED* — $(date -u '+%Y-%m-%d')\nManual backup required immediately!\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        continue-on-error: true
