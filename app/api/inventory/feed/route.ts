@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '50')))
 
-    const where: any = { organizationId: payload.organizationId, isActive: true }
+    const where: Record<string, unknown>  = { organizationId: payload.organizationId, isActive: true }
     if (type) where.type = type
     if (search) {
       where.OR = [
@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
       ]
     }
 
-    let items = await prisma.feedItem.findMany({
+    const items = await prisma.feedItem.findMany({
       where,
       include: {
         createdBy: { select: { id: true, name: true, role: true } },

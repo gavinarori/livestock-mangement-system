@@ -32,7 +32,7 @@ interface Treatment {
   createdAt: string; updatedAt: string
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers
 const PRIORITY_STYLES: Record<string, string> = {
   CRITICAL: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300',
   HIGH:     'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300',
@@ -52,7 +52,7 @@ const STATUS_STYLES: Record<string, string> = {
   CANCELLED:   'bg-gray-50 text-gray-500',
 }
 
-// ─── New Treatment Form ───────────────────────────────────────────────────────
+// ─── New Treatment Form 
 function NewTreatmentModal({
   animals, onClose, onCreated,
 }: {
