@@ -100,6 +100,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
@@ -195,32 +200,3 @@ jobs:
           echo "$BODY" | grep -qi "livestock\|sign in\|login\|agrovault" || \
             (echo "Page content check failed — app may not have loaded correctly" && exit 1)
 
-  # ─────────────────────────────────────────────
-  # NOTIFY ON FAILURE
-  # ─────────────────────────────────────────────
-  notify-failure:
-    name: Notify on failure
-    runs-on: ubuntu-latest
-    needs: [migrate, deploy-vercel, smoke-test]
-    if: failure()
-    steps:
-      - name: Post failure to Slack
-        
-        uses: slackapi/slack-github-action@v1.27.0
-        with:
-          payload: |
-            {
-              "text": "❌ *Deployment failed* on `${{ github.ref_name }}`",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "❌ *AgroVault deployment failed*\n*Branch:* `${{ github.ref_name }}`\n*Commit:* `${{ github.sha }}`\n*Actor:* @${{ github.actor }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View logs>"
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
