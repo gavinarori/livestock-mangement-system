@@ -1,0 +1,186 @@
+name: Security & Maintenance
+
+on:
+  schedule:
+    # Every Monday at 07:00 UTC
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "20"
+
+permissions:
+  contents: read
+  security-events: write
+  issues: write
+
+jobs:
+  # ─────────────────────────────────────────────
+  # CODEQL STATIC ANALYSIS
+  # ──────��──────────────────────────────────────
+  codeql:
+    name: CodeQL analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@4.1.7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@3.25.13
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+
+      - name: Setup Node.js
+        uses: actions/setup-node@4.0.2
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: "mongodb://localhost:27017/placeholder"
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@3.25.13
+
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@3.25.13
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ─────────────────────────────────────────────
+  # DEPENDENCY VULNERABILITY SCAN
+  # ─────────────────────────────────────────────
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@4.1.7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@4.0.2
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Full npm audit
+        id: audit
+        run: |
+          npm audit --json > audit-report.json 2>&1 || true
+          CRITICAL=$(cat audit-report.json | node -e "
+            const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+            console.log(d.metadata?.vulnerabilities?.critical || 0);
+          " 2>/dev/null || echo "0")
+          HIGH=$(cat audit-report.json | node -e "
+            const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+            console.log(d.metadata?.vulnerabilities?.high || 0);
+          " 2>/dev/null || echo "0")
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "Critical: $CRITICAL | High: $HIGH"
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@4.3.3
+        with:
+          name: security-audit-${{ github.run_id }}
+          path: audit-report.json
+          retention-days: 90
+
+      - name: Open issue for critical vulnerabilities
+        if: ${{ steps.audit.outputs.critical > 0 }}
+        uses: actions/github-script@7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('audit-report.json', 'utf8'));
+            const vulns = report.vulnerabilities || {};
+            const critical = Object.entries(vulns)
+              .filter(([,v]) => v.severity === 'critical')
+              .map(([name,v]) => `- **${name}** (${v.severity}): ${v.via?.[0]?.title || 'Unknown'}`)
+              .join('\n');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔴 Critical security vulnerabilities found — ${new Date().toISOString().split('T')[0]}`,
+              body: [
+                '## Critical Security Vulnerabilities',
+                '',
+                'The weekly security scan found **${{ steps.audit.outputs.critical }}** critical',
+                'and **${{ steps.audit.outputs.high }}** high severity vulnerabilities.',
+                '',
+                '### Critical packages',
+                critical || '_See attached audit report_',
+                '',
+                '### Action required',
+                '- Run `npm audit fix` locally',
+                '- Review and update affected packages',
+                '- Re-run `npm audit` to verify resolution',
+                '',
+                `_Detected by automated scan on ${new Date().toUTCString()}_`,
+              ].join('\n'),
+              labels: ['security', 'critical', 'automated'],
+            });
+
+  # ─────────────────────────────────────────────
+  # SECRET SCANNING (detect hardcoded secrets)
+  # ─────────────────────────────────────────────
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog secret scan
+        uses: trufflesecurity/trufflehog@v3.63.0
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified --json
+        continue-on-error: true
+
+  # ─────────────────────────────────────────────
+  # STALE ISSUE / PR MANAGEMENT
+  # ─────────────────────────────────────────────
+  stale:
+    name: Mark stale issues and PRs
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@9.2.0
+        with:
+          days-before-stale: 30
+          days-before-close: 7
+          stale-issue-label: stale
+          stale-pr-label: stale
+          stale-issue-message: >
+            This issue has been inactive for 30 days. It will be closed in 7 days
+            unless there is further activity. Please comment if this is still relevant.
+          stale-pr-message: >
+            This pull request has been inactive for 30 days. It will be closed in 7 days
+            unless there is further activity. Please rebase and update if this is still needed.
+          exempt-issue-labels: "pinned,security,critical"
+          exempt-pr-labels: "pinned,security,do-not-close"
