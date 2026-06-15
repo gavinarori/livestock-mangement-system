@@ -17,7 +17,7 @@ permissions:
 jobs:
   # ─────────────────────────────────────────────
   # CODEQL STATIC ANALYSIS
-  # ─────────────────────────────────────────────
+  # ──────��──────────────────────────────────────
   codeql:
     name: CodeQL analysis
     runs-on: ubuntu-latest
@@ -31,16 +31,16 @@ jobs:
         language: [javascript-typescript]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@4.1.7
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@3.25.13
         with:
           languages: ${{ matrix.language }}
           queries: security-extended,security-and-quality
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@4.0.2
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -54,10 +54,10 @@ jobs:
           DATABASE_URL: "mongodb://localhost:27017/placeholder"
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@3.25.13
 
       - name: Run CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@3.25.13
         with:
           category: "/language:${{ matrix.language }}"
 
@@ -69,10 +69,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@4.1.7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@4.0.2
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -97,7 +97,7 @@ jobs:
           echo "Critical: $CRITICAL | High: $HIGH"
 
       - name: Upload audit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4.3.3
         with:
           name: security-audit-${{ github.run_id }}
           path: audit-report.json
@@ -105,7 +105,7 @@ jobs:
 
       - name: Open issue for critical vulnerabilities
         if: ${{ steps.audit.outputs.critical > 0 }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@7.0.1
         with:
           script: |
             const fs = require('fs');
@@ -147,12 +147,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@4.1.7
         with:
           fetch-depth: 0
 
       - name: Run TruffleHog secret scan
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@v3.63.0
         with:
           path: ./
           base: ${{ github.event.repository.default_branch }}
@@ -170,7 +170,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/stale@v9
+      - uses: actions/stale@9.2.0
         with:
           days-before-stale: 30
           days-before-close: 7
