@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyPassword, generateToken } from '@/lib/auth/utils'
 import { LoginSchema } from '@/lib/validations'
+import { setAuthCookie } from '@/lib/auth-cookie'
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
       organizationId: user.organizationId,
       role: user.role
     })
-
+    await setAuthCookie(token)
     return NextResponse.json({
       message: 'Logged in successfully',
       token,

@@ -47,14 +47,62 @@ interface SearchResult {
   meta?: string
 }
 
+// ─── Role types ───────────────────────────────────────────────────────────────
+
+export type UserRole = 'ADMIN' | 'MANAGER' | 'VETERINARIAN' | 'WORKER' | 'VIEWER'
+
 // ─── Navigation config ────────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
+type NavItem = {
+  href: string
+  label: string
+  icon: React.FC<{ className?: string }>
+  badge: string | null
+  description: string
+  /** Roles that can see this item. Undefined = visible to all. */
+  allowedRoles?: UserRole[]
+}
+
+type NavGroup = {
+  section: string
+  items: NavItem[]
+}
+
+const NAV_ITEMS: NavGroup[] = [
   {
     section: 'Overview',
     items: [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null, description: 'Farm overview & live activity' },
       { href: '/analytics', label: 'Analytics', icon: BarChart3, badge: null, description: 'Performance insights & reports' },
+    ],
+  },
+  {
+    section: 'Dashboards',
+    items: [
+      {
+        href: '/work-dashboard',
+        label: 'Worker Dashboard',
+        icon: Activity,
+        badge: null,
+        description: 'Daily farm operations',
+        allowedRoles: ['ADMIN', 'MANAGER', 'WORKER'],
+      },
+      {
+        href: '/Veterinary-dashboard',
+        label: 'Veterinary Dashboard',
+        icon: Syringe,
+        badge: null,
+        description: 'Animal health & treatments',
+        allowedRoles: ['ADMIN', 'VETERINARIAN'],
+      },
+      {
+        href: '/Manager-task-assignment',
+        label: 'Manager Task Assignment',
+        icon: BarChart3,
+        badge: null,
+        description: 'Operations & team overview',
+        allowedRoles: ['ADMIN', 'MANAGER'],
+      },
     ],
   },
   {
@@ -78,6 +126,17 @@ const NAV_ITEMS = [
     ],
   },
 ]
+
+function getFilteredNavItems(role: UserRole): NavGroup[] {
+  return NAV_ITEMS
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item =>
+        !item.allowedRoles || item.allowedRoles.includes(role)
+      ),
+    }))
+    .filter(group => group.items.length > 0)
+}
 
 // ─── Result type icon map ──────────────────────────────────────────────────────
 
@@ -495,17 +554,22 @@ export function AppSidebar({
   children,
   orgLogoUrl,
   orgName,
+  userRole = 'VIEWER',
 }: {
   children: React.ReactNode
   orgLogoUrl?: string | null
   orgName?: string | null
+  userRole?: UserRole
 }) {
   const pathname = usePathname()
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
+  const filteredNavItems = getFilteredNavItems(userRole)
+
   const handleSignOut = async () => {
+    
     router.push('/login')
   }
 
@@ -533,7 +597,7 @@ export function AppSidebar({
       {/* Nav */}
       <nav className="flex-1 px-2 py-4 overflow-y-auto" aria-label="Primary navigation">
         <div className="space-y-6">
-          {NAV_ITEMS.map(group => (
+          {filteredNavItems.map(group => (
             <div key={group.section}>
               {!collapsed && (
                 <p className="px-3 mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-sidebar-foreground/40">
