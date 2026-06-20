@@ -19,7 +19,7 @@ describe('GET /api/organization/members', () => {
   it('returns the list of members for the org', async () => {
     prismaMock.user.findMany.mockResolvedValueOnce([
       { id: 'u1', email: 'a@example.com', name: 'Alice', role: 'ADMIN', isActive: true, createdAt: new Date() },
-    ] as any)
+    ] )
 
     const res = await request(server).get('/api/organization/members').set(authHeader())
 
