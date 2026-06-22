@@ -15,6 +15,7 @@ export type Permission =
   | 'breeding:read'
   | 'breeding:create'
   | 'breeding:update'
+  | 'breeding:manage'
   | 'analytics:read'
   | 'members:read'
   | 'members:manage'
@@ -26,7 +27,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'animals:read', 'animals:create', 'animals:update', 'animals:delete',
     'health:read', 'health:create', 'health:update',
     'veterinary:read', 'veterinary:create', 'veterinary:update',
-    'breeding:read', 'breeding:create', 'breeding:update',
+    'breeding:read', 'breeding:create', 'breeding:update', 'breeding:manage',
     'analytics:read',
     'members:read', 'members:manage',
     'organization:manage',
@@ -36,7 +37,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'animals:read', 'animals:create', 'animals:update',
     'health:read', 'health:create', 'health:update',
     'veterinary:read', 'veterinary:create', 'veterinary:update',
-    'breeding:read', 'breeding:create', 'breeding:update',
+    'breeding:read', 'breeding:create', 'breeding:update', 'breeding:manage',
     'analytics:read',
     'members:read',
     'sharing:create',
@@ -45,7 +46,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'animals:read',
     'health:read', 'health:create', 'health:update',
     'veterinary:read', 'veterinary:create', 'veterinary:update',
-    'breeding:read',
+    'breeding:read', 'breeding:manage',
     'analytics:read',
     'sharing:create',
   ],

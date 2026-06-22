@@ -6,6 +6,7 @@ export interface AuthContext {
   userId: string
   email: string
   organizationId: string
+  role: string
 }
 
 export function withAuth(handler: (req: NextRequest, context: any, auth: AuthContext) => Promise<Response>) {
@@ -25,7 +26,8 @@ export function withAuth(handler: (req: NextRequest, context: any, auth: AuthCon
     const auth: AuthContext = {
       userId: payload.userId,
       email: payload.email,
-      organizationId: payload.organizationId
+      organizationId: payload.organizationId,
+      role: payload.role,
     }
 
     return handler(req, context, auth)
@@ -64,7 +66,8 @@ export function withOrgAuth(permission?: Permission) {
       const auth: AuthContext = {
         userId: payload.userId,
         email: payload.email,
-        organizationId: payload.organizationId
+        organizationId: payload.organizationId,
+        role: payload.role,
       }
 
       return handler(req, context, auth)

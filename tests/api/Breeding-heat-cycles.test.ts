@@ -1,8 +1,8 @@
-// Tests for: app/api/breeding/heat-cycles/route.ts  (GET, POST, DELETE)
 import request from 'supertest'
 import { GET, POST, DELETE } from '@/app/api/breeding/heat-cycles/route'
 import { createNextTestServer } from '../utils/testServer'
 import { authHeader } from '../utils/authHelpers'
+import { mockOrgAuthSuccess, mockOrgAuthInsufficientPermission } from '../utils/Orgauthhelpers'
 import { prismaMock } from '../mocks/prisma'
 
 const server = createNextTestServer([
@@ -13,13 +13,14 @@ const server = createNextTestServer([
 
 describe('GET /api/breeding/heat-cycles', () => {
   it('returns a paginated list of heat cycles, recalculating overdue ones first', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.heatCycle.findMany
-      .mockResolvedValueOnce([{ id: 'hc-overdue' }] as any) // overdueRecords lookup
-      .mockResolvedValueOnce([{ id: 'hc1', animal: {}, createdBy: {} }] as any) // main list
-    prismaMock.heatCycle.updateMany.mockResolvedValueOnce({ count: 1 } as any)
+      .mockResolvedValueOnce([{ id: 'hc-overdue' }])
+      .mockResolvedValueOnce([{ id: 'hc1', animal: {}, createdBy: {} }])
+    prismaMock.heatCycle.updateMany.mockResolvedValueOnce({ count: 1 })
     prismaMock.heatCycle.count.mockResolvedValueOnce(1)
 
-    const res = await request(server).get('/api/breeding/heat-cycles').set(authHeader())
+    const res = await request(server).get('/api/breeding/heat-cycles').set(authHeader({ role: 'ADMIN' }))
 
     expect(res.status).toBe(200)
     expect(res.body.cycles).toHaveLength(1)
@@ -30,21 +31,23 @@ describe('GET /api/breeding/heat-cycles', () => {
   })
 
   it('skips the bulk update when there are no overdue records', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.heatCycle.findMany
-      .mockResolvedValueOnce([]) // no overdue records
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
     prismaMock.heatCycle.count.mockResolvedValueOnce(0)
 
-    const res = await request(server).get('/api/breeding/heat-cycles').set(authHeader())
+    const res = await request(server).get('/api/breeding/heat-cycles').set(authHeader({ role: 'ADMIN' }))
 
     expect(res.status).toBe(200)
     expect(prismaMock.heatCycle.updateMany).not.toHaveBeenCalled()
   })
 
   it('returns 500 on database error', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.heatCycle.findMany.mockRejectedValueOnce(new Error('db down'))
 
-    const res = await request(server).get('/api/breeding/heat-cycles').set(authHeader())
+    const res = await request(server).get('/api/breeding/heat-cycles').set(authHeader({ role: 'ADMIN' }))
 
     expect(res.status).toBe(500)
     expect(res.body.error).toBe('Failed to fetch heat cycles')
@@ -55,12 +58,11 @@ describe('POST /api/breeding/heat-cycles', () => {
   const validBody = { animalId: 'a1', lastHeatDate: '2026-01-01' }
 
   it('creates a heat cycle for a valid female animal', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.animal.findFirst.mockResolvedValueOnce({
       id: 'a1', name: 'Bessie', gender: 'FEMALE', healthStatus: 'HEALTHY', type: 'CATTLE',
-    } as any)
-    prismaMock.heatCycle.create.mockResolvedValueOnce({
-      id: 'hc1', animal: {}, createdBy: {},
-    } as any)
+    })
+    prismaMock.heatCycle.create.mockResolvedValueOnce({ id: 'hc1', animal: {}, createdBy: {} })
 
     const res = await request(server)
       .post('/api/breeding/heat-cycles')
@@ -71,7 +73,9 @@ describe('POST /api/breeding/heat-cycles', () => {
     expect(res.body.message).toBe('Heat cycle logged successfully.')
   })
 
-  it('returns 403 when role lacks write permission', async () => {
+  it('returns 403 when the JWT role lacks the breeding:manage permission', async () => {
+    mockOrgAuthInsufficientPermission('VIEWER')
+
     const res = await request(server)
       .post('/api/breeding/heat-cycles')
       .set(authHeader({ role: 'VIEWER' }))
@@ -81,6 +85,7 @@ describe('POST /api/breeding/heat-cycles', () => {
   })
 
   it('returns 404 when the animal does not exist in the org', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.animal.findFirst.mockResolvedValueOnce(null)
 
     const res = await request(server)
@@ -92,9 +97,10 @@ describe('POST /api/breeding/heat-cycles', () => {
   })
 
   it('returns 422 when the animal is not female', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.animal.findFirst.mockResolvedValueOnce({
       id: 'a1', name: 'Ferdinand', gender: 'MALE', healthStatus: 'HEALTHY', type: 'CATTLE',
-    } as any)
+    })
 
     const res = await request(server)
       .post('/api/breeding/heat-cycles')
@@ -106,9 +112,10 @@ describe('POST /api/breeding/heat-cycles', () => {
   })
 
   it('returns 422 when the animal is deceased', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.animal.findFirst.mockResolvedValueOnce({
       id: 'a1', name: 'Bessie', gender: 'FEMALE', healthStatus: 'DECEASED', type: 'CATTLE',
-    } as any)
+    })
 
     const res = await request(server)
       .post('/api/breeding/heat-cycles')
@@ -120,6 +127,8 @@ describe('POST /api/breeding/heat-cycles', () => {
   })
 
   it('returns 400 on invalid payload', async () => {
+    mockOrgAuthSuccess('ADMIN')
+
     const res = await request(server)
       .post('/api/breeding/heat-cycles')
       .set(authHeader({ role: 'ADMIN' }))
@@ -131,8 +140,9 @@ describe('POST /api/breeding/heat-cycles', () => {
 
 describe('DELETE /api/breeding/heat-cycles', () => {
   it('deletes an existing heat cycle by query id', async () => {
-    prismaMock.heatCycle.findFirst.mockResolvedValueOnce({ id: 'hc1' } as any)
-    prismaMock.heatCycle.delete.mockResolvedValueOnce({ id: 'hc1' } as any)
+    mockOrgAuthSuccess('ADMIN')
+    prismaMock.heatCycle.findFirst.mockResolvedValueOnce({ id: 'hc1' })
+    prismaMock.heatCycle.delete.mockResolvedValueOnce({ id: 'hc1' })
 
     const res = await request(server)
       .delete('/api/breeding/heat-cycles')
@@ -144,6 +154,8 @@ describe('DELETE /api/breeding/heat-cycles', () => {
   })
 
   it('returns 400 when no id query param is provided', async () => {
+    mockOrgAuthSuccess('ADMIN')
+
     const res = await request(server)
       .delete('/api/breeding/heat-cycles')
       .set(authHeader({ role: 'ADMIN' }))
@@ -152,7 +164,9 @@ describe('DELETE /api/breeding/heat-cycles', () => {
     expect(res.body.error).toBe('Heat cycle ID required.')
   })
 
-  it('returns 403 when role lacks permission to delete', async () => {
+  it('returns 403 when the JWT role lacks the breeding:manage permission', async () => {
+    mockOrgAuthInsufficientPermission('VIEWER')
+
     const res = await request(server)
       .delete('/api/breeding/heat-cycles')
       .query({ id: 'hc1' })
@@ -162,6 +176,7 @@ describe('DELETE /api/breeding/heat-cycles', () => {
   })
 
   it('returns 404 when the heat cycle does not exist', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.heatCycle.findFirst.mockResolvedValueOnce(null)
 
     const res = await request(server)

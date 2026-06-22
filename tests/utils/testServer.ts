@@ -1,4 +1,3 @@
-
 import http from 'http'
 import { NextRequest } from 'next/server'
 
@@ -8,16 +7,8 @@ export type NextRouteHandler = (req: NextRequest, context: any) => Promise<Respo
 
 interface RouteDef {
   method: string
-  /** Express-style path, e.g. "/api/animals/:id/shares" */
   path: string
   handler: NextRouteHandler
-  /**
-   * How `context.params` should be shaped for this handler:
-   *  - 'promise': context.params is a Promise<{ id }> (Next 15 async-params convention)
-   *  - 'plain':   context.params is a plain { id } object
-   *  - 'none':    no path params; context is just {}
-   * Defaults to 'promise'.
-   */
   paramsMode?: ParamsMode
 }
 
@@ -41,18 +32,6 @@ function compile(path: string): { regex: RegExp; paramNames: string[] } {
   return { regex: new RegExp(`^${pattern}/?$`), paramNames }
 }
 
-/**
- * Builds a plain Node http.Server that dispatches incoming requests to
- * Next.js App Router route handlers (the GET/POST/PATCH/... functions
- * exported from a route.ts file). Pass the returned server directly into
- * `supertest(...)`.
- *
- * Example:
- *   const server = createNextTestServer([
- *     { method: 'GET', path: '/api/animals/:id', handler: GET, paramsMode: 'promise' },
- *   ])
- *   await request(server).get('/api/animals/a1').set(authHeader())
- */
 export function createNextTestServer(routeDefs: RouteDef[]) {
   const routes: CompiledRoute[] = routeDefs.map((r) => {
     const { regex, paramNames } = compile(r.path)

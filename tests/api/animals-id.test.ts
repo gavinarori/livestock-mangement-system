@@ -1,5 +1,3 @@
-
-// Tests for: app/api/animals/[id]/route.ts  (GET, PUT, DELETE)
 import request from 'supertest'
 import { GET, PUT, DELETE } from '@/app/api/animals/[id]/route'
 import { createNextTestServer } from '../utils/testServer'
@@ -14,7 +12,7 @@ const server = createNextTestServer([
 
 describe('GET /api/animals/:id', () => {
   it('returns the animal when it belongs to the caller organization', async () => {
-    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1', name: 'Bessie' } as any)
+    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1', name: 'Bessie' })
 
     const res = await request(server).get('/api/animals/a1').set(authHeader())
 
@@ -38,8 +36,8 @@ describe('GET /api/animals/:id', () => {
 
 describe('PUT /api/animals/:id', () => {
   it('updates an existing animal', async () => {
-    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' } as any)
-    prismaMock.animal.update.mockResolvedValueOnce({ id: 'a1', name: 'Bessie II' } as any)
+    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' })
+    prismaMock.animal.update.mockResolvedValueOnce({ id: 'a1', name: 'Bessie II' })
 
     const res = await request(server).put('/api/animals/a1').set(authHeader()).send({ name: 'Bessie II' })
 
@@ -58,12 +56,23 @@ describe('PUT /api/animals/:id', () => {
     expect(res.status).toBe(404)
     expect(prismaMock.animal.update).not.toHaveBeenCalled()
   })
+
+  it('returns 400 on invalid update payload', async () => {
+    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' })
+
+    const res = await request(server)
+      .put('/api/animals/a1')
+      .set(authHeader())
+      .send({ type: 'NOT_A_REAL_TYPE' })
+
+    expect(res.status).toBe(400)
+  })
 })
 
 describe('DELETE /api/animals/:id', () => {
   it('deletes an animal that belongs to the org', async () => {
-    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' } as any)
-    prismaMock.animal.delete.mockResolvedValueOnce({ id: 'a1' } as any)
+    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' })
+    prismaMock.animal.delete.mockResolvedValueOnce({ id: 'a1' })
 
     const res = await request(server).delete('/api/animals/a1').set(authHeader())
 
@@ -78,5 +87,10 @@ describe('DELETE /api/animals/:id', () => {
 
     expect(res.status).toBe(404)
     expect(prismaMock.animal.delete).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 without a token', async () => {
+    const res = await request(server).delete('/api/animals/a1')
+    expect(res.status).toBe(401)
   })
 })
