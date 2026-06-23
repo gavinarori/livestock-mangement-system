@@ -1,8 +1,8 @@
-// Tests for: app/api/breeding/records/route.ts  (GET, POST)
 import request from 'supertest'
 import { GET, POST } from '@/app/api/breeding/records/route'
 import { createNextTestServer } from '../utils/testServer'
 import { authHeader } from '../utils/authHelpers'
+import { mockOrgAuthSuccess, mockOrgAuthInsufficientPermission } from '../utils/Orgauthhelpers'
 import { prismaMock } from '../mocks/prisma'
 
 const server = createNextTestServer([
@@ -12,12 +12,13 @@ const server = createNextTestServer([
 
 describe('GET /api/breeding/records', () => {
   it('returns a paginated list of breeding records for the org', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.breeding.findMany.mockResolvedValueOnce([
       { id: 'b1', damId: 'd1', sireId: 's1', dam: {}, sire: {}, createdBy: {}, updatedBy: null },
-    ] as any)
+    ])
     prismaMock.breeding.count.mockResolvedValueOnce(1)
 
-    const res = await request(server).get('/api/breeding/records').set(authHeader())
+    const res = await request(server).get('/api/breeding/records').set(authHeader({ role: 'ADMIN' }))
 
     expect(res.status).toBe(200)
     expect(res.body.records).toHaveLength(1)
@@ -25,13 +26,14 @@ describe('GET /api/breeding/records', () => {
   })
 
   it('applies outcome, damId, and search filters to the where clause', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.breeding.findMany.mockResolvedValueOnce([])
     prismaMock.breeding.count.mockResolvedValueOnce(0)
 
     const res = await request(server)
       .get('/api/breeding/records')
       .query({ outcome: 'PENDING', damId: 'd1', search: 'bessie' })
-      .set(authHeader())
+      .set(authHeader({ role: 'ADMIN' }))
 
     expect(res.status).toBe(200)
     const where = prismaMock.breeding.findMany.mock.calls[0][0].where
@@ -41,12 +43,18 @@ describe('GET /api/breeding/records', () => {
   })
 
   it('returns 500 when the database query fails', async () => {
+    mockOrgAuthSuccess('ADMIN')
     prismaMock.breeding.findMany.mockRejectedValueOnce(new Error('db down'))
 
-    const res = await request(server).get('/api/breeding/records').set(authHeader())
+    const res = await request(server).get('/api/breeding/records').set(authHeader({ role: 'ADMIN' }))
 
     expect(res.status).toBe(500)
     expect(res.body.error).toBe('Failed to fetch breeding records')
+  })
+
+  it('returns 401 when no auth token is provided', async () => {
+    const res = await request(server).get('/api/breeding/records')
+    expect(res.status).toBe(401)
   })
 })
 
@@ -58,26 +66,25 @@ describe('POST /api/breeding/records', () => {
   }
 
   it('creates a breeding record when dam/sire are compatible', async () => {
-    // validateBreedingCompatibility: dam, sire lookups
+    mockOrgAuthSuccess('ADMIN')
+
     prismaMock.animal.findFirst
       .mockResolvedValueOnce({
         id: 'dam-1', name: 'Bessie', gender: 'FEMALE', type: 'CATTLE',
         healthStatus: 'HEALTHY', parentMaleId: null, parentFemaleId: null,
-      } as any)
+      })
       .mockResolvedValueOnce({
         id: 'sire-1', name: 'Ferdinand', gender: 'MALE', type: 'CATTLE',
         healthStatus: 'HEALTHY', parentMaleId: null, parentFemaleId: null,
-      } as any)
-    // pending breeding check
+      })
     prismaMock.breeding.findFirst.mockResolvedValueOnce(null)
-    // calculateInbreedingCoeff -> getAncestors calls for dam then sire (depth 4 each, but no parents so returns early)
     prismaMock.animal.findFirst
-      .mockResolvedValueOnce({ parentMaleId: null, parentFemaleId: null } as any) // dam ancestors
-      .mockResolvedValueOnce({ parentMaleId: null, parentFemaleId: null } as any) // sire ancestors
+      .mockResolvedValueOnce({ parentMaleId: null, parentFemaleId: null })
+      .mockResolvedValueOnce({ parentMaleId: null, parentFemaleId: null })
 
     prismaMock.breeding.create.mockResolvedValueOnce({
       id: 'b1', damId: 'dam-1', sireId: 'sire-1', dam: {}, sire: {}, createdBy: {},
-    } as any)
+    })
 
     const res = await request(server)
       .post('/api/breeding/records')
@@ -89,26 +96,32 @@ describe('POST /api/breeding/records', () => {
     expect(res.body.record.id).toBe('b1')
   })
 
-  it('returns 403 when the role lacks write permission', async () => {
+  it('returns 403 when the JWT role lacks write permission (route-level check)', async () => {
+    // VIEWER has 'breeding:read' but not 'breeding:manage' in ROLE_PERMISSIONS,
+    // so withOrgAuth itself blocks before the route handler's own WRITE_ROLES check runs.
+    mockOrgAuthInsufficientPermission('VIEWER')
+
     const res = await request(server)
       .post('/api/breeding/records')
       .set(authHeader({ role: 'VIEWER' }))
       .send(validBody)
 
     expect(res.status).toBe(403)
-    expect(res.body.error).toMatch(/Admins, Managers, and Veterinarians/)
+    expect(res.body.error).toBe('Insufficient permissions')
   })
 
   it('returns 422 when dam and sire are incompatible (cross-species)', async () => {
+    mockOrgAuthSuccess('ADMIN')
+
     prismaMock.animal.findFirst
       .mockResolvedValueOnce({
         id: 'dam-1', name: 'Bessie', gender: 'FEMALE', type: 'CATTLE',
         healthStatus: 'HEALTHY', parentMaleId: null, parentFemaleId: null,
-      } as any)
+      })
       .mockResolvedValueOnce({
         id: 'sire-1', name: 'Wooly', gender: 'MALE', type: 'SHEEP',
         healthStatus: 'HEALTHY', parentMaleId: null, parentFemaleId: null,
-      } as any)
+      })
     prismaMock.breeding.findFirst.mockResolvedValueOnce(null)
 
     const res = await request(server)
@@ -121,6 +134,8 @@ describe('POST /api/breeding/records', () => {
   })
 
   it('returns 400 when the request body fails validation', async () => {
+    mockOrgAuthSuccess('ADMIN')
+
     const res = await request(server)
       .post('/api/breeding/records')
       .set(authHeader({ role: 'ADMIN' }))

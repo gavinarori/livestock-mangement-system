@@ -1,5 +1,3 @@
-
-// Tests for: app/api/animals/[id]/shares/route.ts  (POST, GET)
 import request from 'supertest'
 import { POST, GET } from '@/app/api/animals/[id]/share/route'
 import { createNextTestServer } from '../utils/testServer'
@@ -13,12 +11,12 @@ const server = createNextTestServer([
 
 describe('POST /api/animals/:id/shares', () => {
   it('creates a share link for an animal in the org', async () => {
-    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' } as any)
+    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' })
     prismaMock.animalShare.create.mockResolvedValueOnce({
       id: 's1',
       token: 'abc',
       creator: { name: 'Test User', email: 'test@example.com' },
-    } as any)
+    })
 
     const res = await request(server)
       .post('/api/animals/a1/shares')
@@ -30,14 +28,27 @@ describe('POST /api/animals/:id/shares', () => {
   })
 
   it('hashes the share password when one is provided', async () => {
-    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' } as any)
-    prismaMock.animalShare.create.mockResolvedValueOnce({ id: 's1' } as any)
+    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' })
+    prismaMock.animalShare.create.mockResolvedValueOnce({ id: 's1' })
 
     await request(server).post('/api/animals/a1/shares').set(authHeader()).send({ password: 'secret123' })
 
     expect(prismaMock.animalShare.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ passwordHash: expect.stringMatching(/^\$2[aby]\$/) }),
+      })
+    )
+  })
+
+  it('omits passwordHash when no password is provided', async () => {
+    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' })
+    prismaMock.animalShare.create.mockResolvedValueOnce({ id: 's1' })
+
+    await request(server).post('/api/animals/a1/shares').set(authHeader()).send({})
+
+    expect(prismaMock.animalShare.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ passwordHash: undefined }),
       })
     )
   })
@@ -55,12 +66,23 @@ describe('POST /api/animals/:id/shares', () => {
     const res = await request(server).post('/api/animals/a1/shares').send({})
     expect(res.status).toBe(401)
   })
+
+  it('returns 400 on invalid payload (bad allowedEmails entry)', async () => {
+    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' })
+
+    const res = await request(server)
+      .post('/api/animals/a1/shares')
+      .set(authHeader())
+      .send({ allowedEmails: ['not-an-email'] })
+
+    expect(res.status).toBe(400)
+  })
 })
 
 describe('GET /api/animals/:id/shares', () => {
   it('lists shares for an animal in the org', async () => {
-    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' } as any)
-    prismaMock.animalShare.findMany.mockResolvedValueOnce([{ id: 's1' }] as any)
+    prismaMock.animal.findFirst.mockResolvedValueOnce({ id: 'a1' })
+    prismaMock.animalShare.findMany.mockResolvedValueOnce([{ id: 's1' }])
 
     const res = await request(server).get('/api/animals/a1/shares').set(authHeader())
 
@@ -74,5 +96,10 @@ describe('GET /api/animals/:id/shares', () => {
     const res = await request(server).get('/api/animals/nope/shares').set(authHeader())
 
     expect(res.status).toBe(404)
+  })
+
+  it('returns 401 without a token', async () => {
+    const res = await request(server).get('/api/animals/a1/shares')
+    expect(res.status).toBe(401)
   })
 })
