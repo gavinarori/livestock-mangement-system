@@ -72,7 +72,7 @@ const NAV_ITEMS: NavGroup[] = [
   {
     section: 'Overview',
     items: [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null, description: 'Farm overview & live activity' },
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null, description: 'Farm overview & live activity', allowedRoles: ['ADMIN', 'MANAGER']  },
       { href: '/analytics', label: 'Analytics', icon: BarChart3, badge: null, description: 'Performance insights & reports' },
     ],
   },
@@ -122,7 +122,7 @@ const NAV_ITEMS: NavGroup[] = [
   {
     section: 'System',
     items: [
-      { href: '/settings', label: 'Settings', icon: Settings, badge: null, description: 'Preferences & configuration' },
+      { href: '/settings', label: 'Settings', icon: Settings, badge: null, description: 'Preferences & configuration', allowedRoles: ['ADMIN', 'MANAGER']},
     ],
   },
 ]

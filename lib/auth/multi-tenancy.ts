@@ -54,6 +54,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'animals:read', 'animals:create', 'animals:update',
     'health:read', 'health:create',
     'breeding:read',
+    'analytics:read',              
   ],
   [UserRole.VIEWER]: [
     'animals:read',
