@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -6,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import {
   CheckCircle2, Clock, AlertTriangle, Loader2, ClipboardList,
   RefreshCw, Circle, Zap, Beef, Stethoscope, Syringe, Wrench,
-  Egg, Droplets, AlertCircle, CheckCheck, PlayCircle, XCircle, Filter
+  Egg, Droplets, AlertCircle, CheckCheck, PlayCircle, XCircle, Filter,
+  MessageSquare, Send, History
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,6 +55,54 @@ function formatDue(dateStr?: string) {
   return { label: `Due ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`, urgent: false, overdue: false }
 }
 
+// ─── Blocker / feedback modal ──────────────────────────────────────────────────
+function BlockerModal({ task, onClose, onSubmit, submitting }: {
+  task: Task
+  onClose: () => void
+  onSubmit: (message: string) => void
+  submitting: boolean
+}) {
+  const [message, setMessage] = useState('')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="font-bold text-lg flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-orange-500" />Report a blocker
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Let your manager know what's stopping you on <span className="font-medium">{task.title}</span>
+          </p>
+        </div>
+        <div className="p-5 space-y-3">
+          <textarea
+            autoFocus
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            rows={4}
+            placeholder="e.g. Out of feed for pen 3, waiting on restock…"
+            className="w-full border border-input rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          />
+        </div>
+        <div className="px-5 py-4 border-t border-border flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={() => message.trim() && onSubmit(message.trim())}
+            disabled={submitting || !message.trim()}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-orange-600 text-white text-sm font-semibold hover:bg-orange-700 disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+          >
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {submitting ? 'Sending…' : 'Send to manager'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function WorkerDashboardPage() {
   const router = useRouter()
   const [tasks, setTasks] = useState<Task[]>([])
@@ -63,6 +111,8 @@ export default function WorkerDashboardPage() {
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'OVERDUE' | 'DONE'>('ALL')
   const [error, setError] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [blockerTask, setBlockerTask] = useState<Task | null>(null)
+  const [expandedNotes, setExpandedNotes] = useState<string | null>(null)
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type })
@@ -89,19 +139,47 @@ export default function WorkerDashboardPage() {
 
   useEffect(() => { fetchTasks() }, [fetchTasks])
 
+  // Generic PATCH helper — can carry a status change and/or a worker update note
+  const patchTask = async (taskId: string, body: Record<string, any>) => {
+    const token = localStorage.getItem('token')
+    const res = await fetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+    return res.json()
+  }
+
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     setUpdating(taskId)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: newStatus }),
-      })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
-      const data = await res.json()
+      // Attach an automatic note so the manager sees when work actually
+      // started or finished, not just the bare status flip.
+      const workerUpdate =
+        newStatus === 'IN_PROGRESS' ? 'Started working on this task.' :
+        newStatus === 'DONE' ? 'Marked task as done.' :
+        undefined
+      const data = await patchTask(taskId, { status: newStatus, ...(workerUpdate ? { workerUpdate } : {}) })
       setTasks(prev => prev.map(t => t.id === taskId ? data.task : t))
       showToast(newStatus === 'DONE' ? '✓ Task completed!' : 'Task updated')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const handleBlockerSubmit = async (message: string) => {
+    if (!blockerTask) return
+    setUpdating(blockerTask.id)
+    try {
+      // Report the blocker but leave status as IN_PROGRESS / current status —
+      // the manager is notified via the note, the task isn't silently paused.
+      const data = await patchTask(blockerTask.id, { workerUpdate: `🚧 Blocker: ${message}` })
+      setTasks(prev => prev.map(t => t.id === blockerTask.id ? data.task : t))
+      showToast('Manager notified of blocker')
+      setBlockerTask(null)
     } catch (e: any) {
       showToast(e.message, 'error')
     } finally {
@@ -141,6 +219,15 @@ export default function WorkerDashboardPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-6">
+
+      {blockerTask && (
+        <BlockerModal
+          task={blockerTask}
+          onClose={() => setBlockerTask(null)}
+          onSubmit={handleBlockerSubmit}
+          submitting={updating === blockerTask.id}
+        />
+      )}
 
       {/* Toast */}
       {toast && (
@@ -242,6 +329,8 @@ export default function WorkerDashboardPage() {
             const { label: dueLabel, urgent, overdue: isDuePast } = formatDue(task.dueDate)
             const actions = STATUS_ACTIONS[task.status] || []
             const isUpdating = updating === task.id
+            const canReportBlocker = task.status === 'IN_PROGRESS' || task.status === 'PENDING' || task.status === 'OVERDUE'
+            const notesExpanded = expandedNotes === task.id
 
             return (
               <li key={task.id}
@@ -286,15 +375,26 @@ export default function WorkerDashboardPage() {
                     </div>
 
                     {task.notes && (
-                      <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/40 rounded-lg border border-border">
-                        📝 {task.notes}
-                      </p>
+                      <button
+                        onClick={() => setExpandedNotes(notesExpanded ? null : task.id)}
+                        className="w-full text-left mt-2"
+                      >
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                          <History className="w-3 h-3" />
+                          {notesExpanded ? 'Hide activity log' : 'View notes & activity log'}
+                        </div>
+                        {notesExpanded && (
+                          <p className="text-xs text-muted-foreground mt-1.5 p-2 bg-muted/40 rounded-lg border border-border whitespace-pre-line">
+                            {task.notes}
+                          </p>
+                        )}
+                      </button>
                     )}
                   </div>
                 </div>
 
-                {actions.length > 0 && (
-                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+                {(actions.length > 0 || canReportBlocker) && (
+                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border flex-wrap">
                     {actions.map(({ next, label, icon: ActionIcon }) => (
                       <button key={next} onClick={() => handleStatusChange(task.id, next)}
                         disabled={isUpdating}
@@ -310,6 +410,12 @@ export default function WorkerDashboardPage() {
                       <button onClick={() => handleStatusChange(task.id, 'PENDING')} disabled={isUpdating}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors">
                         <XCircle className="w-3.5 h-3.5" />Pause
+                      </button>
+                    )}
+                    {canReportBlocker && (
+                      <button onClick={() => setBlockerTask(task)} disabled={isUpdating}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-orange-600 border border-orange-200 dark:border-orange-800/50 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors disabled:opacity-50">
+                        <MessageSquare className="w-3.5 h-3.5" />Report blocker
                       </button>
                     )}
                   </div>
@@ -332,5 +438,3 @@ export default function WorkerDashboardPage() {
     </div>
   )
 }
-
-
