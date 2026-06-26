@@ -31,13 +31,14 @@ const UpdateSchema = z.object({
   notes: z.string().optional().nullable(),
 })
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const payload = authFromReq(req)
     if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const record = await prisma.healthRecord.findFirst({
-      where: { id: params.id, organizationId: payload.organizationId },
+      where: { id, organizationId: payload.organizationId },
       include: {
         animal: { select: { id: true, name: true, type: true, breed: true, identificationId: true, healthStatus: true } },
         createdBy: { select: { id: true, name: true, role: true } },
@@ -52,16 +53,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const payload = authFromReq(req)
+    const { id } = await params
+    const payload: any = authFromReq(req)
     if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!WRITE_ROLES.includes(payload.role)) {
       return NextResponse.json({ error: 'Insufficient permissions to edit health records.' }, { status: 403 })
     }
 
     const existing = await prisma.healthRecord.findFirst({
-      where: { id: params.id, organizationId: payload.organizationId },
+      where: { id, organizationId: payload.organizationId },
     })
     if (!existing) return NextResponse.json({ error: 'Record not found.' }, { status: 404 })
 
@@ -96,7 +98,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (v.notes !== undefined) data.notes = v.notes
 
     const record = await prisma.healthRecord.update({
-      where: { id: params.id },
+      where: { id },
       data,
       include: {
         animal: { select: { id: true, name: true, type: true, breed: true, identificationId: true } },
@@ -112,20 +114,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const payload = authFromReq(req)
+    const { id } = await params
+    const payload: any = authFromReq(req)
     if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!WRITE_ROLES.includes(payload.role)) {
       return NextResponse.json({ error: 'Insufficient permissions to delete health records.' }, { status: 403 })
     }
 
     const existing = await prisma.healthRecord.findFirst({
-      where: { id: params.id, organizationId: payload.organizationId },
+      where: { id, organizationId: payload.organizationId },
     })
     if (!existing) return NextResponse.json({ error: 'Record not found.' }, { status: 404 })
 
-    await prisma.healthRecord.delete({ where: { id: params.id } })
+    await prisma.healthRecord.delete({ where: { id } })
     return NextResponse.json({ message: 'Record deleted.' })
   } catch (e: any) {
     console.error('[health/records/id] DELETE:', e)

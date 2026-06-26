@@ -9,17 +9,23 @@ const UpdateTreatmentSchema = z.object({
   status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
   condition: z.string().min(1).optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
+  startDate: z.string().optional(),
   medication: z.string().optional().nullable(),
   dosage: z.string().optional().nullable(),
   frequency: z.string().optional().nullable(),
   route: z.string().optional().nullable(),
   temperature: z.number().optional().nullable(),
   weight: z.number().optional().nullable(),
+  assignedVetId: z.string().optional().nullable(),
+  assignedVetName: z.string().optional().nullable(),
+  diagnosisSource: z.string().optional().nullable(),
+  labReference: z.string().optional().nullable(),
   isolationRequired: z.boolean().optional(),
   isolationLocation: z.string().optional().nullable(),
   followUpDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  attachments: z.array(z.string()).optional(),
   // Recovery steps: array of { step, done, doneAt }
   steps: z.array(z.object({
     step: z.string(),
@@ -30,10 +36,10 @@ const UpdateTreatmentSchema = z.object({
 
 const handler = async (
   req: NextRequest,
-  context: { params: { id: string } },
+  context: { params: Promise<{ id: string }> },
   auth: AuthContext
 ) => {
-  const { id } = context.params
+  const { id } = await context.params
 
   const treatment = await prisma.treatment.findFirst({
     where: { id, organizationId: auth.organizationId },
@@ -47,9 +53,25 @@ const handler = async (
       const body = await req.json()
       const validated = UpdateTreatmentSchema.parse(body)
 
+      // If only an assignedVetId is given (no name), resolve the vet's name
+      // server-side so the UI doesn't have to know it.
+      let vetName = validated.assignedVetName
+      if (validated.assignedVetId && vetName === undefined) {
+        const vet = await prisma.vetProfile.findFirst({
+          where: { id: validated.assignedVetId, organizationId: auth.organizationId },
+          select: { name: true },
+        })
+        vetName = vet?.name
+      }
+
       const updateData: any = {
         ...validated,
         updatedById: auth.userId,
+      }
+      if (vetName !== undefined) updateData.assignedVetName = vetName
+
+      if (validated.startDate) {
+        updateData.startDate = new Date(validated.startDate)
       }
 
       if (validated.status === 'COMPLETED') {

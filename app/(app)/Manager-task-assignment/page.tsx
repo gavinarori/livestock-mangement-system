@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -6,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import {
   ClipboardList, Plus, X, Loader2, Users, Calendar,
   AlertCircle, CheckCircle2, RefreshCw, Trash2, Filter,
-  Beef, Stethoscope, Syringe, Wrench, Egg, Droplets, Circle
+  Beef, Stethoscope, Syringe, Wrench, Egg, Droplets, Circle,
+  History, ChevronDown, ChevronUp, Save, Pencil
 } from 'lucide-react'
 
 interface Worker { id: string; name: string; role: string; email: string }
@@ -189,6 +189,163 @@ function CreateTaskModal({ workers, animals, onClose, onCreated }: {
   )
 }
 
+// ─── Edit Task Modal (managers can edit every field) ──────────────────────────
+function EditTaskModal({ task, workers, animals, onClose, onSaved }: {
+  task: Task; workers: Worker[]; animals: Animal[]
+  onClose: () => void; onSaved: (t: Task) => void
+}) {
+  const [form, setForm] = useState({
+    title: task.title,
+    description: task.description || '',
+    category: task.category,
+    priority: task.priority,
+    status: task.status,
+    assignedToId: task.assignedTo?.id || '',
+    dueDate: task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : '',
+    notes: task.notes || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const handleSubmit = async () => {
+    if (!form.title.trim()) { setErr('Title is required'); return }
+    setSaving(true); setErr('')
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          category: form.category,
+          priority: form.priority,
+          status: form.status,
+          assignedToId: form.assignedToId || null,
+          dueDate: form.dueDate || null,
+          notes: form.notes,
+        }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+      const data = await res.json()
+      onSaved(data.task)
+      onClose()
+    } catch (e: any) {
+      setErr(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="sticky top-0 bg-card border-b border-border px-5 py-4 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <h2 className="font-bold text-lg">Edit Task</h2>
+            <p className="text-xs text-muted-foreground">Update any field on this task</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-muted rounded-lg transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {err && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive text-sm rounded-xl border border-destructive/20">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />{err}
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Task Title *</label>
+            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              className="w-full border border-input rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Description</label>
+            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              rows={2} className="w-full border border-input rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Category</label>
+              <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                className="w-full border border-input rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring">
+                {['FEEDING','CLEANING','MEDICATION','VACCINATION','INSPECTION','BREEDING','EQUIPMENT','OTHER'].map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Priority</label>
+              <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+                className="w-full border border-input rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring">
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="URGENT">Urgent</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Status</label>
+            <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+              className="w-full border border-input rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring">
+              {['PENDING','IN_PROGRESS','DONE','OVERDUE','CANCELLED'].map(s => (
+                <option key={s} value={s}>{s.replace('_', ' ')}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">
+              <Users className="w-3 h-3 inline mr-1" />Assign To
+            </label>
+            <select value={form.assignedToId} onChange={e => setForm(f => ({ ...f, assignedToId: e.target.value }))}
+              className="w-full border border-input rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="">Unassigned</option>
+              {workers.map(w => (
+                <option key={w.id} value={w.id}>{w.name} ({w.role})</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">
+              <Calendar className="w-3 h-3 inline mr-1" />Due Date & Time
+            </label>
+            <input type="datetime-local" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+              className="w-full border border-input rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Notes</label>
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              rows={3}
+              className="w-full border border-input rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+            <p className="text-[10px] text-muted-foreground mt-1">Editing this replaces the full notes/activity log.</p>
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-card border-t border-border px-5 py-4 flex gap-3 rounded-b-2xl">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleSubmit} disabled={saving}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManagerTasksPage() {
   const router = useRouter()
@@ -197,11 +354,13 @@ export default function ManagerTasksPage() {
   const [animals, setAnimals] = useState<Animal[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editTask, setEditTask] = useState<Task | null>(null)
   const [filterWorker, setFilterWorker] = useState('ALL')
   const [filterStatus, setFilterStatus] = useState('ALL')
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [expandedNotes, setExpandedNotes] = useState<string | null>(null)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -242,7 +401,7 @@ export default function ManagerTasksPage() {
       const res = await fetch(`/api/tasks/${taskId}`, {
         method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
       })
-      if (!res.ok) throw new Error('Failed to delete')
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Failed to delete') }
       setTasks(prev => prev.filter(t => t.id !== taskId))
       showToast('Task deleted')
     } catch (e: any) {
@@ -290,6 +449,16 @@ export default function ManagerTasksPage() {
           animals={animals}
           onClose={() => setShowModal(false)}
           onCreated={t => { setTasks(prev => [t, ...prev]); showToast('Task created!') }}
+        />
+      )}
+
+      {editTask && (
+        <EditTaskModal
+          task={editTask}
+          workers={workers}
+          animals={animals}
+          onClose={() => setEditTask(null)}
+          onSaved={t => { setTasks(prev => prev.map(x => x.id === t.id ? t : x)); showToast('Task updated!') }}
         />
       )}
 
@@ -383,49 +552,79 @@ export default function ManagerTasksPage() {
           {filtered.map((task, i) => {
             const Icon = CATEGORY_ICONS[task.category] || Circle
             const isDue = task.dueDate ? new Date(task.dueDate) < new Date() && task.status !== 'DONE' && task.status !== 'CANCELLED' : false
+            const notesExpanded = expandedNotes === task.id
             return (
               <li key={task.id}
-                className={`animate-fade-up flex items-center gap-3 p-4 bg-card border rounded-2xl hover:shadow-sm transition-all
+                className={`animate-fade-up flex flex-col gap-2 p-4 bg-card border rounded-2xl hover:shadow-sm transition-all
                   ${task.status === 'OVERDUE' ? 'border-red-200 dark:border-red-800/60' : 'border-border hover:border-primary/20'}`}
                 style={{ animationDelay: `${i * 40}ms`, animationFillMode: 'forwards' }}>
 
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
-                  ${task.status === 'OVERDUE' ? 'bg-red-100 dark:bg-red-950/40' : 'bg-muted'}`}>
-                  <Icon className={`w-4 h-4 ${task.status === 'OVERDUE' ? 'text-red-600' : 'text-muted-foreground'}`} />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${PRIORITY_STYLES[task.priority]}`}>
-                      {task.priority}
-                    </span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_STYLES[task.status]}`}>
-                      {task.status.replace('_', ' ')}
-                    </span>
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
+                    ${task.status === 'OVERDUE' ? 'bg-red-100 dark:bg-red-950/40' : 'bg-muted'}`}>
+                    <Icon className={`w-4 h-4 ${task.status === 'OVERDUE' ? 'text-red-600' : 'text-muted-foreground'}`} />
                   </div>
-                  <p className="text-sm font-semibold truncate">{task.title}</p>
-                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                    {task.assignedTo ? (
-                      <span className="text-xs text-muted-foreground">→ {task.assignedTo.name}</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">Unassigned</span>
-                    )}
-                    {task.animal && (
-                      <span className="text-xs text-muted-foreground">· 🐄 {task.animal.name}</span>
-                    )}
-                    {task.dueDate && (
-                      <span className={`text-xs font-medium flex items-center gap-1 ${isDue ? 'text-red-600' : 'text-muted-foreground'}`}>
-                        <Calendar className="w-3 h-3" />
-                        {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${PRIORITY_STYLES[task.priority]}`}>
+                        {task.priority}
                       </span>
-                    )}
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_STYLES[task.status]}`}>
+                        {task.status.replace('_', ' ')}
+                      </span>
+                      {task.notes?.includes('🚧 Blocker') && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-950/40 dark:text-orange-300">
+                          BLOCKER
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm font-semibold truncate">{task.title}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                      {task.assignedTo ? (
+                        <span className="text-xs text-muted-foreground">→ {task.assignedTo.name}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Unassigned</span>
+                      )}
+                      {task.animal && (
+                        <span className="text-xs text-muted-foreground">· 🐄 {task.animal.name}</span>
+                      )}
+                      {task.dueDate && (
+                        <span className={`text-xs font-medium flex items-center gap-1 ${isDue ? 'text-red-600' : 'text-muted-foreground'}`}>
+                          <Calendar className="w-3 h-3" />
+                          {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  <button onClick={() => setEditTask(task)}
+                    className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDelete(task.id)} disabled={deleting === task.id}
+                    className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors flex-shrink-0">
+                    {deleting === task.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  </button>
                 </div>
 
-                <button onClick={() => handleDelete(task.id)} disabled={deleting === task.id}
-                  className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors flex-shrink-0">
-                  {deleting === task.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                </button>
+                {task.notes && (
+                  <div className="pl-12">
+                    <button
+                      onClick={() => setExpandedNotes(notesExpanded ? null : task.id)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <History className="w-3 h-3" />
+                      {notesExpanded ? 'Hide' : 'View'} notes & worker updates
+                      {notesExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                    {notesExpanded && (
+                      <p className="text-xs text-muted-foreground mt-1.5 p-2.5 bg-muted/40 rounded-lg border border-border whitespace-pre-line">
+                        {task.notes}
+                      </p>
+                    )}
+                  </div>
+                )}
               </li>
             )
           })}
@@ -435,4 +634,3 @@ export default function ManagerTasksPage() {
     </div>
   )
 }
-

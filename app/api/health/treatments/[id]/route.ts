@@ -40,16 +40,17 @@ const UpdateTreatmentSchema = z.object({
   notes: z.string().optional().nullable(),
 })
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const payload = auth(req)
+    const { id } = await params
+    const payload: any = auth(req)
     if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!WRITE_ROLES.includes(payload.role)) {
       return NextResponse.json({ error: 'Insufficient permissions.' }, { status: 403 })
     }
 
     const existing = await prisma.treatment.findFirst({
-      where: { id: params.id, organizationId: payload.organizationId },
+      where: { id, organizationId: payload.organizationId },
     })
     if (!existing) return NextResponse.json({ error: 'Treatment not found.' }, { status: 404 })
 
@@ -91,7 +92,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (v.notes !== undefined) data.notes = v.notes
 
     const treatment = await prisma.treatment.update({
-      where: { id: params.id },
+      where: { id },
       data,
       include: {
         animal: { select: { id: true, name: true, type: true, breed: true, identificationId: true, healthStatus: true } },
@@ -124,20 +125,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const payload = auth(req)
+    const { id } = await params
+    const payload: any = auth(req)
     if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!WRITE_ROLES.includes(payload.role)) {
       return NextResponse.json({ error: 'Insufficient permissions.' }, { status: 403 })
     }
 
     const existing = await prisma.treatment.findFirst({
-      where: { id: params.id, organizationId: payload.organizationId },
+      where: { id, organizationId: payload.organizationId },
     })
     if (!existing) return NextResponse.json({ error: 'Treatment not found.' }, { status: 404 })
 
-    await prisma.treatment.delete({ where: { id: params.id } })
+    await prisma.treatment.delete({ where: { id } })
 
     // Decrement vet case count if treatment was active
     if (existing.assignedVetId && (existing.status === 'PENDING' || existing.status === 'IN_PROGRESS')) {

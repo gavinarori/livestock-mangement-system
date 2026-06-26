@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -7,7 +6,7 @@ import {
   Stethoscope, AlertTriangle, Loader2, RefreshCw, CheckCircle2,
   AlertCircle, Activity, Clock, HeartPulse, Pill, ClipboardCheck,
   ChevronDown, ChevronUp, Plus, X, Save, Thermometer, Weight,
-  Shield, ListChecks, CheckCheck
+  Shield, ListChecks, CheckCheck, FlaskConical, FileSearch, CalendarRange
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -26,6 +25,8 @@ interface Treatment {
   isolationRequired: boolean; isolationLocation?: string
   followUpDate?: string; endDate?: string; startDate: string
   completedAt?: string; notes?: string
+  diagnosisSource?: string; labReference?: string
+  assignedVetId?: string; assignedVetName?: string
   steps?: RecoveryStep[]
   animal: Animal
   updatedBy?: { id: string; name: string }
@@ -52,7 +53,7 @@ const STATUS_STYLES: Record<string, string> = {
   CANCELLED:   'bg-gray-50 text-gray-500',
 }
 
-// ─── New Treatment Form 
+// ─── New Treatment Form
 function NewTreatmentModal({
   animals, onClose, onCreated,
 }: {
@@ -274,12 +275,27 @@ function TreatmentCard({ treatment, onUpdate }: { treatment: Treatment; onUpdate
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [localSteps, setLocalSteps] = useState<RecoveryStep[]>(treatment.steps || [])
-  const [editNotes, setEditNotes] = useState(treatment.notes || '')
-  const [editMed, setEditMed] = useState(treatment.medication || '')
-  const [editDosage, setEditDosage] = useState(treatment.dosage || '')
-  const [editFreq, setEditFreq] = useState(treatment.frequency || '')
-  const [editFollowUp, setEditFollowUp] = useState(treatment.followUpDate?.split('T')[0] || '')
   const [toast, setToast] = useState('')
+
+  // Full editable copy of every field on the treatment plan.
+  const [editForm, setEditForm] = useState({
+    condition: treatment.condition,
+    priority: treatment.priority,
+    startDate: treatment.startDate?.split('T')[0] || '',
+    endDate: treatment.endDate?.split('T')[0] || '',
+    medication: treatment.medication || '',
+    dosage: treatment.dosage || '',
+    frequency: treatment.frequency || '',
+    route: treatment.route || '',
+    temperature: treatment.temperature?.toString() || '',
+    weight: treatment.weight?.toString() || '',
+    isolationRequired: treatment.isolationRequired,
+    isolationLocation: treatment.isolationLocation || '',
+    followUpDate: treatment.followUpDate?.split('T')[0] || '',
+    diagnosisSource: treatment.diagnosisSource || '',
+    labReference: treatment.labReference || '',
+    notes: treatment.notes || '',
+  })
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
@@ -298,11 +314,22 @@ function TreatmentCard({ treatment, onUpdate }: { treatment: Treatment; onUpdate
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           steps: localSteps,
-          notes: editNotes,
-          medication: editMed,
-          dosage: editDosage,
-          frequency: editFreq,
-          followUpDate: editFollowUp || null,
+          condition: editForm.condition,
+          priority: editForm.priority,
+          startDate: editForm.startDate || undefined,
+          endDate: editForm.endDate || null,
+          medication: editForm.medication,
+          dosage: editForm.dosage,
+          frequency: editForm.frequency,
+          route: editForm.route,
+          temperature: editForm.temperature ? parseFloat(editForm.temperature) : null,
+          weight: editForm.weight ? parseFloat(editForm.weight) : null,
+          isolationRequired: editForm.isolationRequired,
+          isolationLocation: editForm.isolationLocation || null,
+          followUpDate: editForm.followUpDate || null,
+          diagnosisSource: editForm.diagnosisSource || null,
+          labReference: editForm.labReference || null,
+          notes: editForm.notes,
           ...extraData,
         }),
       })
@@ -433,47 +460,140 @@ function TreatmentCard({ treatment, onUpdate }: { treatment: Treatment; onUpdate
             )}
           </div>
 
-          {/* Prescription / medication */}
+          {/* Edit mode: every field on the treatment plan */}
           {editing ? (
             <div className="space-y-3 p-3 bg-muted/30 rounded-xl border border-border">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                <ClipboardCheck className="w-3.5 h-3.5" />Treatment Plan
+              </p>
+
+              <div>
+                <label className="text-[10px] text-muted-foreground block mb-1">Condition / Diagnosis</label>
+                <input value={editForm.condition} onChange={e => setEditForm(f => ({ ...f, condition: e.target.value }))}
+                  className="w-full border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-muted-foreground block mb-1">Priority</label>
+                  <select value={editForm.priority} onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))}
+                    className="w-full border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring">
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                    <option value="CRITICAL">Critical</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground block mb-1">Start Date</label>
+                  <input type="date" value={editForm.startDate} onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))}
+                    className="w-full border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                </div>
+              </div>
+
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 pt-1">
                 <Pill className="w-3.5 h-3.5" />Prescription
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <input value={editMed} onChange={e => setEditMed(e.target.value)}
+                <input value={editForm.medication} onChange={e => setEditForm(f => ({ ...f, medication: e.target.value }))}
                   placeholder="Medication…"
                   className="border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
-                <input value={editDosage} onChange={e => setEditDosage(e.target.value)}
+                <input value={editForm.dosage} onChange={e => setEditForm(f => ({ ...f, dosage: e.target.value }))}
                   placeholder="Dosage…"
                   className="border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
-                <input value={editFreq} onChange={e => setEditFreq(e.target.value)}
+                <input value={editForm.frequency} onChange={e => setEditForm(f => ({ ...f, frequency: e.target.value }))}
                   placeholder="Frequency…"
                   className="border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
-                <input type="date" value={editFollowUp} onChange={e => setEditFollowUp(e.target.value)}
+                <input value={editForm.route} onChange={e => setEditForm(f => ({ ...f, route: e.target.value }))}
+                  placeholder="Route (IM, IV, oral)…"
                   className="border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
               </div>
-              <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)}
-                rows={2} placeholder="Clinical notes…"
-                className="w-full border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
+
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 pt-1">
+                <Thermometer className="w-3.5 h-3.5" />Vitals
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="number" step="0.1" value={editForm.temperature} onChange={e => setEditForm(f => ({ ...f, temperature: e.target.value }))}
+                  placeholder="Temperature (°C)…"
+                  className="border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                <input type="number" step="0.1" value={editForm.weight} onChange={e => setEditForm(f => ({ ...f, weight: e.target.value }))}
+                  placeholder="Weight (kg)…"
+                  className="border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+
+              <div className="flex items-center gap-2 p-2 border border-border rounded-lg">
+                <input type="checkbox" id={`isolation-${treatment.id}`} checked={editForm.isolationRequired}
+                  onChange={e => setEditForm(f => ({ ...f, isolationRequired: e.target.checked }))}
+                  className="w-3.5 h-3.5 accent-primary" />
+                <label htmlFor={`isolation-${treatment.id}`} className="text-xs font-medium flex items-center gap-1.5">
+                  <Shield className="w-3 h-3 text-orange-500" />Isolation Required
+                </label>
+                {editForm.isolationRequired && (
+                  <input value={editForm.isolationLocation} onChange={e => setEditForm(f => ({ ...f, isolationLocation: e.target.value }))}
+                    placeholder="Location…"
+                    className="flex-1 border border-input rounded-lg px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                )}
+              </div>
+
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 pt-1">
+                <CalendarRange className="w-3.5 h-3.5" />Dates
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-muted-foreground block mb-1">Follow-up date</label>
+                  <input type="date" value={editForm.followUpDate} onChange={e => setEditForm(f => ({ ...f, followUpDate: e.target.value }))}
+                    className="w-full border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground block mb-1">End date (if known)</label>
+                  <input type="date" value={editForm.endDate} onChange={e => setEditForm(f => ({ ...f, endDate: e.target.value }))}
+                    className="w-full border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                </div>
+              </div>
+
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 pt-1">
+                <FlaskConical className="w-3.5 h-3.5" />Lab / Diagnosis
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={editForm.diagnosisSource} onChange={e => setEditForm(f => ({ ...f, diagnosisSource: e.target.value }))}
+                  placeholder="Diagnosis source (field, lab…)"
+                  className="border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                <input value={editForm.labReference} onChange={e => setEditForm(f => ({ ...f, labReference: e.target.value }))}
+                  placeholder="Lab reference #…"
+                  className="border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+
+              <div>
+                <label className="text-[10px] text-muted-foreground block mb-1">Clinical notes</label>
+                <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                  rows={2} placeholder="Clinical notes…"
+                  className="w-full border border-input rounded-lg px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
+              </div>
             </div>
           ) : (
-            (editMed || treatment.medication) && (
+            (treatment.medication || treatment.dosage || treatment.frequency || treatment.route) && (
               <div className="p-3 bg-muted/30 rounded-xl border border-border">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Pill className="w-3.5 h-3.5" />Prescription
                 </p>
                 <div className="space-y-1">
-                  {(editMed || treatment.medication) && (
-                    <p className="text-xs"><span className="text-muted-foreground">Drug: </span><span className="font-medium">{editMed || treatment.medication}</span></p>
+                  {treatment.medication && (
+                    <p className="text-xs"><span className="text-muted-foreground">Drug: </span><span className="font-medium">{treatment.medication}</span></p>
                   )}
-                  {(editDosage || treatment.dosage) && (
-                    <p className="text-xs"><span className="text-muted-foreground">Dosage: </span><span className="font-medium">{editDosage || treatment.dosage}</span></p>
+                  {treatment.dosage && (
+                    <p className="text-xs"><span className="text-muted-foreground">Dosage: </span><span className="font-medium">{treatment.dosage}</span></p>
                   )}
-                  {(editFreq || treatment.frequency) && (
-                    <p className="text-xs"><span className="text-muted-foreground">Frequency: </span><span className="font-medium">{editFreq || treatment.frequency}</span></p>
+                  {treatment.frequency && (
+                    <p className="text-xs"><span className="text-muted-foreground">Frequency: </span><span className="font-medium">{treatment.frequency}</span></p>
                   )}
                   {treatment.route && (
                     <p className="text-xs"><span className="text-muted-foreground">Route: </span><span className="font-medium">{treatment.route}</span></p>
+                  )}
+                  {treatment.diagnosisSource && (
+                    <p className="text-xs"><span className="text-muted-foreground">Diagnosis source: </span><span className="font-medium">{treatment.diagnosisSource}</span></p>
+                  )}
+                  {treatment.labReference && (
+                    <p className="text-xs"><span className="text-muted-foreground">Lab ref: </span><span className="font-medium">{treatment.labReference}</span></p>
                   )}
                 </div>
               </div>
@@ -512,11 +632,11 @@ function TreatmentCard({ treatment, onUpdate }: { treatment: Treatment; onUpdate
             </div>
           )}
 
-          {/* Notes */}
-          {!editing && (editNotes || treatment.notes) && (
+          {/* Notes (read-only view) */}
+          {!editing && treatment.notes && (
             <div className="p-3 bg-muted/30 rounded-xl border border-border">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Notes</p>
-              <p className="text-xs leading-relaxed">{editNotes || treatment.notes}</p>
+              <p className="text-xs leading-relaxed">{treatment.notes}</p>
             </div>
           )}
 
@@ -539,7 +659,7 @@ function TreatmentCard({ treatment, onUpdate }: { treatment: Treatment; onUpdate
                 <>
                   <button onClick={() => setEditing(true)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-xs font-semibold hover:bg-muted transition-colors">
-                    <ClipboardCheck className="w-3.5 h-3.5" />Update Notes / Prescription
+                    <ClipboardCheck className="w-3.5 h-3.5" />Edit Treatment Plan
                   </button>
                   {stepsTotal > 0 && (
                     <button onClick={() => handleSave()} disabled={saving}
@@ -767,4 +887,3 @@ export default function VetDashboardPage() {
     </div>
   )
 }
-

@@ -30,16 +30,17 @@ const UpdateDiseaseSchema = z.object({
   notes: z.string().optional().nullable(),
 })
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const payload = auth(req)
+    const { id } = await params
+    const payload: any  = auth(req)
     if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!WRITE_ROLES.includes(payload.role)) {
       return NextResponse.json({ error: 'Insufficient permissions.' }, { status: 403 })
     }
 
     const existing = await prisma.diseaseOutbreak.findFirst({
-      where: { id: params.id, organizationId: payload.organizationId },
+      where: { id, organizationId: payload.organizationId },
     })
     if (!existing) return NextResponse.json({ error: 'Outbreak not found.' }, { status: 404 })
 
@@ -64,7 +65,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (v.notes !== undefined) data.notes = v.notes
 
     const outbreak = await prisma.diseaseOutbreak.update({
-      where: { id: params.id },
+      where: { id },
       data,
       include: {
         affectedAnimals: {
@@ -83,22 +84,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const payload = auth(req)
+    const { id } = await params
+    const payload: any = auth(req)
     if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!WRITE_ROLES.includes(payload.role)) {
       return NextResponse.json({ error: 'Insufficient permissions.' }, { status: 403 })
     }
 
     const existing = await prisma.diseaseOutbreak.findFirst({
-      where: { id: params.id, organizationId: payload.organizationId },
+      where: { id, organizationId: payload.organizationId },
     })
     if (!existing) return NextResponse.json({ error: 'Outbreak not found.' }, { status: 404 })
 
     // Delete animal links first (cascades via schema but being explicit)
-    await prisma.diseaseOutbreakAnimal.deleteMany({ where: { outbreakId: params.id } })
-    await prisma.diseaseOutbreak.delete({ where: { id: params.id } })
+    await prisma.diseaseOutbreakAnimal.deleteMany({ where: { outbreakId: id } })
+    await prisma.diseaseOutbreak.delete({ where: { id } })
 
     return NextResponse.json({ message: 'Outbreak deleted.' })
   } catch (e: any) {
