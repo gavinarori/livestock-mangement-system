@@ -5,11 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import {
-  Plus, Search, Beef, SlidersHorizontal, LayoutGrid, List, Table2,
-  ArrowUpDown, ArrowUp, ArrowDown, Trash2, Pencil, Eye, ChevronDown,
-  Filter, X, Check, MoreHorizontal, Tag, Weight, Calendar, Hash
+  Plus, Search, Beef, LayoutGrid, List, Table2,
+  ArrowUpDown, ArrowUp, ArrowDown, Trash2, Pencil, Eye, Check,
+  Filter, X, Tag, Weight, Calendar, Hash
 } from 'lucide-react'
 
 type SortField = 'name' | 'type' | 'breed' | 'weight' | 'dob' | 'status'
@@ -170,7 +169,6 @@ export default function AnimalsPage() {
         {/* ── Toolbar ── */}
         <div className="animate-fade-up delay-75 flex flex-col gap-3" style={{ animationFillMode: 'forwards' }}>
           <div className="flex gap-2 flex-wrap">
-            {/* Search */}
             <div className="relative flex-1 min-w-48">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 pointer-events-none" />
               <Input
@@ -181,7 +179,6 @@ export default function AnimalsPage() {
                 className="pl-10 rounded-xl bg-card h-10"
               />
             </div>
-            {/* Filter toggle */}
             <Button
               variant={showFilters ? 'default' : 'outline'}
               className="gap-2 rounded-xl h-10"
@@ -193,7 +190,6 @@ export default function AnimalsPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-primary-foreground" />
               )}
             </Button>
-            {/* View switcher */}
             <div className="flex rounded-xl border border-border overflow-hidden h-10">
               {([['table', Table2], ['list', List], ['grid', LayoutGrid]] as [ViewMode, any][]).map(([mode, Icon]) => (
                 <button
@@ -208,7 +204,6 @@ export default function AnimalsPage() {
             </div>
           </div>
 
-          {/* Filter panel */}
           {showFilters && (
             <div className="animate-fade-up flex flex-wrap gap-3 p-3 rounded-xl bg-card border border-border" style={{ animationFillMode: 'forwards' }}>
               <div>
@@ -308,16 +303,27 @@ export default function AnimalsPage() {
                           </span>
                         ) : '—'}
                       </td>
+                      {/* Actions — always visible; no hover-hide on mobile */}
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-1">
                           <Link href={`/animals/${animal.id}`}>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg"><Eye className="w-3.5 h-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" title="View">
+                              <Eye className="w-4 h-4" />
+                            </Button>
                           </Link>
                           <Link href={`/animals/${animal.id}/edit`}>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg"><Pencil className="w-3.5 h-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" title="Edit">
+                              <Pencil className="w-4 h-4" />
+                            </Button>
                           </Link>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDelete(animal.id)}>
-                            <Trash2 className="w-3.5 h-3.5" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg text-destructive hover:text-destructive"
+                            title="Delete"
+                            onClick={() => handleDelete(animal.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </td>
@@ -348,10 +354,27 @@ export default function AnimalsPage() {
                     {[animal.type, animal.breed, animal.weight && `${animal.weight} kg`, animal.dob && new Date(animal.dob).getFullYear()].filter(Boolean).join(' · ')}
                   </div>
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Link href={`/animals/${animal.id}`}><Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl"><Eye className="w-4 h-4" /></Button></Link>
-                  <Link href={`/animals/${animal.id}/edit`}><Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl"><Pencil className="w-4 h-4" /></Button></Link>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-destructive hover:text-destructive" onClick={() => handleDelete(animal.id)}><Trash2 className="w-4 h-4" /></Button>
+                {/* Always visible action buttons */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Link href={`/animals/${animal.id}`}>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" title="View">
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                  <Link href={`/animals/${animal.id}/edit`}>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" title="Edit">
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-xl text-destructive hover:text-destructive"
+                    title="Delete"
+                    onClick={() => handleDelete(animal.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             ))}
@@ -363,11 +386,9 @@ export default function AnimalsPage() {
           <div className="animate-fade-up delay-150 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" style={{ animationFillMode: 'forwards' }}>
             {filtered.map((animal: any) => (
               <div key={animal.id} className={`group card-hover relative rounded-2xl border bg-card overflow-hidden ${selectedIds.has(animal.id) ? 'border-primary/60 ring-1 ring-primary/30' : 'border-border'}`}>
-                {/* Selection */}
-                <button onClick={() => toggleSelect(animal.id)} className={`absolute top-3 left-3 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedIds.has(animal.id) ? 'bg-primary border-primary opacity-100' : 'border-white/70 opacity-0 group-hover:opacity-100 bg-black/20'}`}>
+                <button onClick={() => toggleSelect(animal.id)} className={`absolute top-3 left-3 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedIds.has(animal.id) ? 'bg-primary border-primary opacity-100' : 'border-white/70 bg-black/20 opacity-100'}`}>
                   {selectedIds.has(animal.id) && <Check className="w-3 h-3 text-white" />}
                 </button>
-                {/* Header band */}
                 <div className="h-20 bg-gradient-to-br from-primary/10 via-secondary to-accent/20 flex items-center justify-center text-4xl">
                   {getTypeIcon(animal.type)}
                 </div>
@@ -386,10 +407,27 @@ export default function AnimalsPage() {
                     {animal.weight && <div className="flex items-center gap-1"><Weight className="w-3 h-3" /> {animal.weight} kg</div>}
                     {animal.dob && <div className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(animal.dob).toLocaleDateString()}</div>}
                   </div>
-                  <div className="mt-3 pt-3 border-t border-border flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Link href={`/animals/${animal.id}`} className="flex-1"><Button variant="outline" size="sm" className="w-full h-7 text-xs rounded-lg gap-1"><Eye className="w-3 h-3" />View</Button></Link>
-                    <Link href={`/animals/${animal.id}/edit`}><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg"><Pencil className="w-3 h-3" /></Button></Link>
-                    <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive hover:border-destructive/40" onClick={() => handleDelete(animal.id)}><Trash2 className="w-3 h-3" /></Button>
+                  {/* Always-visible grid actions */}
+                  <div className="mt-3 pt-3 border-t border-border flex gap-1">
+                    <Link href={`/animals/${animal.id}`} className="flex-1">
+                      <Button variant="outline" size="sm" className="w-full h-8 text-xs rounded-lg gap-1">
+                        <Eye className="w-3 h-3" />View
+                      </Button>
+                    </Link>
+                    <Link href={`/animals/${animal.id}/edit`}>
+                      <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" title="Edit">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-lg text-destructive hover:text-destructive hover:border-destructive/40"
+                      title="Delete"
+                      onClick={() => handleDelete(animal.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
                 </div>
               </div>

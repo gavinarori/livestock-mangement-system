@@ -76,8 +76,6 @@ const fmtKsh = (v: number) => `KSh ${v.toLocaleString('en-KE', { minimumFraction
 const daysUntil = (d?: string) => !d ? null : Math.round((new Date(d).getTime() - Date.now()) / 86400000)
 const isExpired = (d?: string) => !!d && new Date(d) < new Date()
 const isExpiringSoon = (d?: string) => { if (!d) return false; const diff = (new Date(d).getTime() - Date.now()) / 86400000; return diff >= 0 && diff < 30 }
-const isLow = (qty: number, min: number) => qty <= min
-
 
 const StockBar = ({ qty, min, max }: { qty: number; min: number; max: number }) => {
   const pct = Math.min((qty / Math.max(max, 1)) * 100, 100)
@@ -578,7 +576,6 @@ export default function InventoryPage() {
   const [showAlertsOnly, setShowAlertsOnly] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null)
 
-  // Modal states
   const [showFeedModal, setShowFeedModal] = useState(false)
   const [showMedModal, setShowMedModal] = useState(false)
   const [showEquipModal, setShowEquipModal] = useState(false)
@@ -590,7 +587,6 @@ export default function InventoryPage() {
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => setToast({ message, type }), [])
 
-  // ── Load session & data ──────────────────────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem('token')
     const userData = localStorage.getItem('user')
@@ -624,7 +620,6 @@ export default function InventoryPage() {
     showToast('Refreshed', 'success')
   }
 
-  // ── Stats ────────────────────────────────────────────────────────────────────
   const stats = useMemo(() => ({
     lowFeed: feed.filter(f => f.alerts.includes('LOW_STOCK')).length,
     expiringMeds: medicine.filter(m => m.alerts.length > 0).length,
@@ -634,7 +629,6 @@ export default function InventoryPage() {
     totalMedValueKsh: medicine.reduce((s, m) => s + (m.totalValue ?? 0), 0),
   }), [feed, medicine, equipment])
 
-  // ── Filtering ────────────────────────────────────────────────────────────────
   const q = search.toLowerCase()
   const filteredFeed = feed.filter(f => {
     const match = !q || f.name.toLowerCase().includes(q) || f.type.toLowerCase().includes(q) || (f.supplier ?? '').toLowerCase().includes(q)
@@ -649,7 +643,6 @@ export default function InventoryPage() {
     return match && (!showAlertsOnly || e.alerts.length > 0)
   })
 
-  // ── Delete ───────────────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!deleteTarget) return
     setDeleteLoading(true)
@@ -841,13 +834,18 @@ export default function InventoryPage() {
                                 </span>
                               ) : '—'}
                             </td>
+                            {/* Actions always visible */}
                             <td className="px-4 py-3">
                               {write && (
-                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex items-center justify-end gap-1">
                                   <button onClick={() => { setEditFeed(f); setShowFeedModal(true) }}
-                                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"><Edit2 className="w-3.5 h-3.5" /></button>
+                                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit">
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
                                   <button onClick={() => setDeleteTarget({ type: 'feed', id: f.id, label: f.name })}
-                                    className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-muted-foreground hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                                    className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-muted-foreground hover:text-red-600" title="Delete">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
                                 </div>
                               )}
                             </td>
@@ -899,12 +897,17 @@ export default function InventoryPage() {
                               <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mt-0.5"><ShieldCheck className="w-3 h-3" />Prescription required</div>
                             )}
                           </div>
+                          {/* Always visible medicine card actions */}
                           {write && (
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            <div className="flex items-center gap-1 flex-shrink-0">
                               <button onClick={() => { setEditMed(m); setShowMedModal(true) }}
-                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"><Edit2 className="w-3.5 h-3.5" /></button>
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit">
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
                               <button onClick={() => setDeleteTarget({ type: 'medicine', id: m.id, label: m.name })}
-                                className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-muted-foreground hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                                className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-muted-foreground hover:text-red-600" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           )}
                         </div>
@@ -1015,12 +1018,17 @@ export default function InventoryPage() {
                         <p className="text-xs text-muted-foreground italic border-t border-border pt-2">"{e.maintenanceNotes}"</p>
                       )}
 
+                      {/* Always visible equipment actions */}
                       {write && (
-                        <div className="flex gap-1 pt-1 border-t border-border justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 pt-1 border-t border-border justify-end">
                           <button onClick={() => { setEditEquip(e); setShowEquipModal(true) }}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Edit2 className="w-3 h-3" />Edit</button>
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                            <Edit2 className="w-3 h-3" />Edit
+                          </button>
                           <button onClick={() => setDeleteTarget({ type: 'equipment', id: e.id, label: e.name })}
-                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-muted-foreground hover:text-red-600 transition-colors"><Trash2 className="w-3 h-3" /></button>
+                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-muted-foreground hover:text-red-600 transition-colors">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </div>
                       )}
                     </div>
