@@ -553,9 +553,9 @@ function TreatmentFormModal({ open, onClose, onSaved, animals, vets, editItem }:
       const body = { animalId, condition, status, priority, startDate, assignedVetId: assignedVetId || null, medication: medication || null, dosage: dosage || null, frequency: frequency || null, isolationRequired, isolationLocation: isolationLocation || null, followUpDate: followUpDate || null, steps, notes: notes || null }
       let data
       if (isEdit) {
-        data = await apiFetch(`/api/health/treatments/${editItem!.id}`, { method: 'PATCH', body: JSON.stringify(body) })
+        data = await apiFetch(`/api/vet/treatments/${editItem!.id}`, { method: 'PATCH', body: JSON.stringify(body) })
       } else {
-        data = await apiFetch('/api/health/treatments', { method: 'POST', body: JSON.stringify(body) })
+        data = await apiFetch('/api/vet/treatments', { method: 'POST', body: JSON.stringify(body) })
       }
       onSaved(data.treatment)
       onClose()

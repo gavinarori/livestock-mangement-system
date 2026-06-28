@@ -52,12 +52,25 @@ interface SearchResult {
 export type UserRole = 'ADMIN' | 'MANAGER' | 'VETERINARIAN' | 'WORKER' | 'VIEWER'
 
 // ─── Navigation config ────────────────────────────────────────────────────────
+//
+// `badge` is no longer a hardcoded placeholder string. Each item that should
+// show a "needs attention" count instead carries an `attentionKey`, which is
+// resolved to a live number by useAttentionCounts() below. Items without an
+// attentionKey never show a badge (e.g. Settings, Analytics).
+
+type AttentionKey =
+  | 'breeding'
+  | 'health'
+  | 'inventory'
+  | 'workerDashboard'
+  | 'vetDashboard'
+  | 'managerTasks'
 
 type NavItem = {
   href: string
   label: string
   icon: React.FC<{ className?: string }>
-  badge: string | null
+  attentionKey?: AttentionKey
   description: string
   /** Roles that can see this item. Undefined = visible to all. */
   allowedRoles?: UserRole[]
@@ -72,8 +85,8 @@ const NAV_ITEMS: NavGroup[] = [
   {
     section: 'Overview',
     items: [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null, description: 'Farm overview & live activity', allowedRoles: ['ADMIN', 'MANAGER']  },
-      { href: '/analytics', label: 'Analytics', icon: BarChart3, badge: null, description: 'Performance insights & reports' },
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Farm overview & live activity', allowedRoles: ['ADMIN', 'MANAGER'] },
+      { href: '/analytics', label: 'Analytics', icon: BarChart3, description: 'Performance insights & reports' },
     ],
   },
   {
@@ -83,7 +96,7 @@ const NAV_ITEMS: NavGroup[] = [
         href: '/work-dashboard',
         label: 'Worker Dashboard',
         icon: Activity,
-        badge: null,
+        attentionKey: 'workerDashboard',
         description: 'Daily farm operations',
         allowedRoles: ['ADMIN', 'MANAGER', 'WORKER'],
       },
@@ -91,7 +104,7 @@ const NAV_ITEMS: NavGroup[] = [
         href: '/Veterinary-dashboard',
         label: 'Veterinary Dashboard',
         icon: Syringe,
-        badge: null,
+        attentionKey: 'vetDashboard',
         description: 'Animal health & treatments',
         allowedRoles: ['ADMIN', 'VETERINARIAN'],
       },
@@ -99,7 +112,7 @@ const NAV_ITEMS: NavGroup[] = [
         href: '/Manager-task-assignment',
         label: 'Manager Task Assignment',
         icon: BarChart3,
-        badge: null,
+        attentionKey: 'managerTasks',
         description: 'Operations & team overview',
         allowedRoles: ['ADMIN', 'MANAGER'],
       },
@@ -108,21 +121,21 @@ const NAV_ITEMS: NavGroup[] = [
   {
     section: 'Livestock',
     items: [
-      { href: '/animals', label: 'Animals', icon: Beef, badge: null, description: 'Manage livestock records' },
-      { href: '/breeding', label: 'Breeding', icon: Dna, badge: '3', description: 'Heat cycles & genetics' },
-      { href: '/healthy', label: 'Health', icon: HeartPulse, badge: '2', description: 'Vaccinations & treatments' },
+      { href: '/animals', label: 'Animals', icon: Beef, description: 'Manage livestock records' },
+      { href: '/breeding', label: 'Breeding', icon: Dna, attentionKey: 'breeding', description: 'Heat cycles & genetics' },
+      { href: '/healthy', label: 'Health', icon: HeartPulse, attentionKey: 'health', description: 'Vaccinations & treatments' },
     ],
   },
   {
     section: 'Resources',
     items: [
-      { href: '/inventory', label: 'Inventory', icon: Boxes, badge: '5', description: 'Feed, medicine & equipment' },
+      { href: '/inventory', label: 'Inventory', icon: Boxes, attentionKey: 'inventory', description: 'Feed, medicine & equipment' },
     ],
   },
   {
     section: 'System',
     items: [
-      { href: '/settings', label: 'Settings', icon: Settings, badge: null, description: 'Preferences & configuration', allowedRoles: ['ADMIN', 'MANAGER']},
+      { href: '/settings', label: 'Settings', icon: Settings, description: 'Preferences & configuration', allowedRoles: ['ADMIN', 'MANAGER'] },
     ],
   },
 ]
@@ -136,6 +149,145 @@ function getFilteredNavItems(role: UserRole): NavGroup[] {
       ),
     }))
     .filter(group => group.items.length > 0)
+}
+
+// ─── Attention counts (live, role-aware) ──────────────────────────────────────
+//
+// Each nav item that needs a "needs attention" badge pulls its count from the
+// same API endpoints that item's own page already calls — so the number the
+// sidebar shows always matches what the page itself reports as urgent.
+// Counts refresh on mount, on a polling interval, and whenever the route
+// changes (e.g. after the user fixes something and navigates back).
+
+const ATTENTION_POLL_MS = 60_000
+
+function authHeaders(): HeadersInit {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+async function safeJson(res: Response) {
+  if (!res.ok) return null
+  try { return await res.json() } catch { return null }
+}
+
+async function fetchBreedingAttention(): Promise<number> {
+  // Overdue heat cycles — mirrors BreedingPage's own "Overdue heat cycles" stat.
+  const data = await safeJson(await fetch('/api/breeding/heat-cycles?limit=200', { headers: authHeaders() }))
+  const cycles = data?.cycles ?? []
+  return cycles.filter((c: any) => c.status === 'OVERDUE').length
+}
+
+async function fetchHealthAttention(): Promise<number> {
+  // Overdue vaccinations + critical/high active treatments + active outbreaks —
+  // mirrors HealthIntelligencePage's KPI strip.
+  const [vacc, tx, dis] = await Promise.all([
+    safeJson(await fetch('/api/health/vaccinations?limit=200', { headers: authHeaders() })),
+    safeJson(await fetch('/api/health/treatments?limit=200', { headers: authHeaders() })),
+    safeJson(await fetch('/api/health/diseases?isActive=true&limit=200', { headers: authHeaders() })),
+  ])
+  const overdueVacc = (vacc?.schedules ?? []).filter((v: any) => v.status === 'OVERDUE').length
+  const urgentTx = (tx?.treatments ?? []).filter((t: any) =>
+    t.status !== 'COMPLETED' && t.status !== 'CANCELLED' && (t.priority === 'CRITICAL' || t.priority === 'HIGH')
+  ).length
+  const activeOutbreaks = (dis?.outbreaks ?? []).filter((d: any) => d.isActive).length
+  return overdueVacc + urgentTx + activeOutbreaks
+}
+
+async function fetchInventoryAttention(): Promise<number> {
+  // Low feed stock + medicine alerts + equipment issues — mirrors
+  // InventoryPage's stats strip.
+  const [feed, med, equip] = await Promise.all([
+    safeJson(await fetch('/api/inventory/feed?limit=200', { headers: authHeaders() })),
+    safeJson(await fetch('/api/inventory/medicine?limit=200', { headers: authHeaders() })),
+    safeJson(await fetch('/api/inventory/equipment?limit=200', { headers: authHeaders() })),
+  ])
+  const lowFeed = (feed?.items ?? []).filter((f: any) => f.alerts?.includes('LOW_STOCK')).length
+  const medAlerts = (med?.items ?? []).filter((m: any) => (m.alerts?.length ?? 0) > 0).length
+  const equipIssues = (equip?.items ?? []).filter((e: any) => e.status !== 'OPERATIONAL').length
+  return lowFeed + medAlerts + equipIssues
+}
+
+async function fetchWorkerDashboardAttention(): Promise<number> {
+  // Overdue tasks assigned to the current worker.
+  const data = await safeJson(await fetch('/api/tasks?assignedToMe=true', { headers: authHeaders() }))
+  const tasks = data?.tasks ?? []
+  return tasks.filter((t: any) => t.status === 'OVERDUE').length
+}
+
+async function fetchVetDashboardAttention(): Promise<number> {
+  // Critical active treatments + sick/injured animals still missing a
+  // treatment plan — mirrors VetDashboardPage's "Critical" + "Need Attention".
+  const data = await safeJson(await fetch('/api/vet/treatments', { headers: authHeaders() }))
+  const treatments = data?.treatments ?? []
+  const sickAnimals = data?.sickAnimals ?? []
+  const critical = treatments.filter((t: any) => t.priority === 'CRITICAL' && t.status !== 'COMPLETED').length
+  return critical + sickAnimals.length
+}
+
+async function fetchManagerTasksAttention(): Promise<number> {
+  // Overdue tasks org-wide — mirrors ManagerTasksPage's "Overdue" stat.
+  const data = await safeJson(await fetch('/api/tasks', { headers: authHeaders() }))
+  const tasks = data?.tasks ?? []
+  return tasks.filter((t: any) => t.status === 'OVERDUE').length
+}
+
+const ATTENTION_FETCHERS: Record<AttentionKey, () => Promise<number>> = {
+  breeding: fetchBreedingAttention,
+  health: fetchHealthAttention,
+  inventory: fetchInventoryAttention,
+  workerDashboard: fetchWorkerDashboardAttention,
+  vetDashboard: fetchVetDashboardAttention,
+  managerTasks: fetchManagerTasksAttention,
+}
+
+/**
+ * Resolves live attention counts for every AttentionKey present in
+ * `visibleKeys` (i.e. only for nav items the current role can actually see —
+ * no point calling an endpoint for a dashboard the user can't open). Fails
+ * soft: any individual fetch error just leaves that count at 0 rather than
+ * breaking the whole sidebar.
+ */
+function useAttentionCounts(visibleKeys: AttentionKey[]) {
+  const [counts, setCounts] = useState<Partial<Record<AttentionKey, number>>>({})
+  const pathname = usePathname()
+  const keysRef = useRef(visibleKeys)
+  // eslint-disable-next-line react-hooks/refs
+  keysRef.current = visibleKeys
+
+  const refresh = useCallback(async () => {
+    const keys = keysRef.current
+    if (keys.length === 0) return
+    const results = await Promise.all(
+      keys.map(async key => {
+        try {
+          return [key, await ATTENTION_FETCHERS[key]()] as const
+        } catch {
+          return [key, undefined] as const
+        }
+      })
+    )
+    setCounts(prev => {
+      const next = { ...prev }
+      for (const [key, value] of results) {
+        if (value !== undefined) next[key] = value
+      }
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    refresh()
+    const interval = setInterval(refresh, ATTENTION_POLL_MS)
+    return () => clearInterval(interval)
+    // Re-run when the set of visible keys changes (e.g. role loads in after mount).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh, visibleKeys.join(',')])
+
+  // Also refresh whenever the user navigates — picks up changes they just made.
+  useEffect(() => { refresh() }, [pathname, refresh])
+
+  return counts
 }
 
 // ─── Result type icon map ──────────────────────────────────────────────────────
@@ -568,6 +720,14 @@ export function AppSidebar({
 
   const filteredNavItems = getFilteredNavItems(userRole)
 
+  // Only fetch attention counts for keys actually visible to this role —
+  // e.g. a WORKER never calls the manager-tasks or vet-dashboard endpoints.
+  const visibleAttentionKeys = filteredNavItems
+    .flatMap(g => g.items)
+    .map(i => i.attentionKey)
+    .filter((k): k is AttentionKey => !!k)
+  const attentionCounts = useAttentionCounts(visibleAttentionKeys)
+
   const handleSignOut = async () => {
     
     router.push('/login')
@@ -605,13 +765,16 @@ export function AppSidebar({
                 </p>
               )}
               <div className="space-y-1">
-                {group.items.map(({ href, label, icon: Icon, badge, description }) => {
+                {group.items.map(({ href, label, icon: Icon, attentionKey, description }) => {
                   const active = pathname.startsWith(href)
+                  const count = attentionKey ? attentionCounts[attentionKey] : undefined
+                  const needsAttention = !!count && count > 0
                   return (
                     <Link
                       key={href}
                       href={href}
                       aria-current={active ? 'page' : undefined}
+                      title={collapsed && needsAttention ? `${label} — ${count} need${count === 1 ? 's' : ''} attention` : undefined}
                       className={`
                         group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
                         transition-all duration-200 relative overflow-hidden
@@ -624,17 +787,33 @@ export function AppSidebar({
                       `}
                     >
                       {active && <span className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent pointer-events-none" aria-hidden="true" />}
-                      <Icon className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${active ? 'text-sidebar-primary-foreground' : ''}`} aria-hidden="true" />
+                      <span className="relative flex-shrink-0">
+                        <Icon className={`w-4 h-4 transition-transform duration-200 group-hover:scale-110 ${active ? 'text-sidebar-primary-foreground' : ''}`} aria-hidden="true" />
+                        {/* Collapsed-sidebar indicator: a small dot keeps the
+                            attention signal visible even when there's no room
+                            for a numeric badge next to the label. */}
+                        {collapsed && needsAttention && (
+                          <span
+                            className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-destructive border border-sidebar animate-pulse"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </span>
                       {!collapsed && (
                         <div className="flex-1 min-w-0">
                           <div className="truncate">{label}</div>
                           <div className={`text-[11px] truncate ${active ? 'text-sidebar-primary-foreground/70' : 'text-sidebar-foreground/40'}`}>{description}</div>
                         </div>
                       )}
-                      {!collapsed && badge && (
-                        <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">{badge}</span>
+                      {!collapsed && needsAttention && (
+                        <span
+                          className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                          aria-label={`${count} item${count === 1 ? '' : 's'} need attention`}
+                        >
+                          {count > 99 ? '99+' : count}
+                        </span>
                       )}
-                      {collapsed && <span className="sr-only">{label}</span>}
+                      {collapsed && <span className="sr-only">{label}{needsAttention ? ` — ${count} need attention` : ''}</span>}
                     </Link>
                   )
                 })}

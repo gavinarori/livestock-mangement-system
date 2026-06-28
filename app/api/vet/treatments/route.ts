@@ -8,7 +8,7 @@ import { z } from 'zod'
 const RecoveryStepSchema = z.object({
   step: z.string().min(1),
   done: z.boolean().default(false),
-  doneAt: z.string().optional(),
+  doneAt: z.string().optional().nullable(),
 })
 
 const CreateTreatmentSchema = z.object({
@@ -16,18 +16,19 @@ const CreateTreatmentSchema = z.object({
   condition: z.string().min(1, 'Condition / diagnosis is required'),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).default('MEDIUM'),
   startDate: z.string().optional(),
-  medication: z.string().optional(),
-  dosage: z.string().optional(),
-  frequency: z.string().optional(),
-  route: z.string().optional(),
-  assignedVetId: z.string().optional(),
-  diagnosisSource: z.string().optional(),
-  labReference: z.string().optional(),
+  medication: z.string().optional().nullable(),
+  dosage: z.string().optional().nullable(),
+  frequency: z.string().optional().nullable(),
+  route: z.string().optional().nullable(),
+  assignedVetId: z.string().optional().nullable(),
+  diagnosisSource: z.string().optional().nullable(),
+  labReference: z.string().optional().nullable(),
   isolationRequired: z.boolean().default(false),
-  isolationLocation: z.string().optional(),
-  followUpDate: z.string().optional(),
-  notes: z.string().optional(),
-  steps: z.array(RecoveryStepSchema).optional(),
+  isolationLocation: z.string().optional().nullable(),
+  followUpDate: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  // steps stored as JSON array in Prisma
+  steps: z.array(RecoveryStepSchema).optional().default([]),
 })
 
 const handler = async (req: NextRequest, _context: any, auth: AuthContext) => {
@@ -48,9 +49,7 @@ const handler = async (req: NextRequest, _context: any, auth: AuthContext) => {
         orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
       })
 
-      // Animals that are sick/injured but have no active (non-terminal)
-      // treatment plan yet — these are surfaced so the vet knows who still
-      // needs a plan started.
+      // Animals sick/injured without an active treatment plan
       const animalsWithActiveTreatment = new Set(
         treatments
           .filter(t => t.status === 'PENDING' || t.status === 'IN_PROGRESS')
@@ -108,19 +107,20 @@ const handler = async (req: NextRequest, _context: any, auth: AuthContext) => {
           condition: validated.condition,
           priority: validated.priority as any,
           startDate: validated.startDate ? new Date(validated.startDate) : new Date(),
-          medication: validated.medication,
-          dosage: validated.dosage,
-          frequency: validated.frequency,
-          route: validated.route,
-          assignedVetId: validated.assignedVetId,
+          medication: validated.medication ?? undefined,
+          dosage: validated.dosage ?? undefined,
+          frequency: validated.frequency ?? undefined,
+          route: validated.route ?? undefined,
+          assignedVetId: validated.assignedVetId ?? undefined,
           assignedVetName,
-          diagnosisSource: validated.diagnosisSource,
-          labReference: validated.labReference,
+          diagnosisSource: validated.diagnosisSource ?? undefined,
+          labReference: validated.labReference ?? undefined,
           isolationRequired: validated.isolationRequired,
-          isolationLocation: validated.isolationLocation,
+          isolationLocation: validated.isolationLocation ?? undefined,
           followUpDate: validated.followUpDate ? new Date(validated.followUpDate) : undefined,
-          notes: validated.notes,
-          steps: validated.steps ?? undefined,
+          notes: validated.notes ?? undefined,
+          // Store steps as JSON — Prisma accepts the array directly for Json fields
+          steps: validated.steps.length > 0 ? validated.steps : undefined,
           createdById: auth.userId,
         },
         include: {
@@ -133,8 +133,7 @@ const handler = async (req: NextRequest, _context: any, auth: AuthContext) => {
         },
       })
 
-      // If the animal wasn't already flagged sick/injured, mark it SICK now
-      // that a treatment plan has been started for it.
+      // Flag animal as SICK if it was healthy when treatment started
       let responseTreatment = treatment
       if (animal.healthStatus === 'HEALTHY' || animal.healthStatus === 'RECOVERING') {
         await prisma.animal.update({
@@ -151,7 +150,10 @@ const handler = async (req: NextRequest, _context: any, auth: AuthContext) => {
     } catch (error: any) {
       console.error('[Vet Treatments POST]', error)
       if (error.name === 'ZodError') {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+        return NextResponse.json(
+          { error: error.errors[0]?.message ?? 'Validation error' },
+          { status: 400 }
+        )
       }
       return NextResponse.json({ error: 'Failed to create treatment' }, { status: 500 })
     }
